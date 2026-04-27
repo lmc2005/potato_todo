@@ -21,6 +21,7 @@
     dashboardClockStarted: false,
     dashboardStats: null,
     focusStageStarted: false,
+    editingSubjectId: null,
   };
   const DATA_COLORS = ["#2563eb", "#0f766e", "#d97706", "#e11d48", "#0891b2", "#7c3aed", "#15803d"];
 
@@ -488,6 +489,58 @@
         });
       if (current) select.value = current;
     });
+  }
+
+  function syncSubjectFormState() {
+    const form = $("#focus-subject-form");
+    const modeChip = $("#focus-subject-mode");
+    const submitButton = $("#focus-subject-submit");
+    const cancelButton = $("#focus-subject-cancel");
+    if (!form || !modeChip || !submitButton || !cancelButton) return;
+    const editing = Boolean(state.editingSubjectId);
+    form.dataset.mode = editing ? "edit" : "create";
+    modeChip.textContent = editing ? "Edit mode" : "Create mode";
+    submitButton.textContent = editing ? "Save Subject" : "Add Subject";
+    cancelButton.hidden = !editing;
+  }
+
+  function resetSubjectForm() {
+    const form = $("#focus-subject-form");
+    if (!form) return;
+    form.reset();
+    const subjectIdField = namedField(form, "subject_id");
+    const colorField = namedField(form, "color");
+    const dailyGoalField = namedField(form, "daily_goal_minutes");
+    const weeklyGoalField = namedField(form, "weekly_goal_minutes");
+    const monthlyGoalField = namedField(form, "monthly_goal_minutes");
+    if (subjectIdField) subjectIdField.value = "";
+    if (colorField && !colorField.value) colorField.value = "#5E8CFF";
+    if (dailyGoalField && !dailyGoalField.value) dailyGoalField.value = "60";
+    if (weeklyGoalField && !weeklyGoalField.value) weeklyGoalField.value = "420";
+    if (monthlyGoalField && !monthlyGoalField.value) monthlyGoalField.value = "1800";
+    state.editingSubjectId = null;
+    syncSubjectFormState();
+  }
+
+  function startSubjectEditing(subjectId) {
+    const subject = subjectById(subjectId);
+    const form = $("#focus-subject-form");
+    if (!subject || !form) return;
+    const subjectIdField = namedField(form, "subject_id");
+    const nameField = namedField(form, "name");
+    const colorField = namedField(form, "color");
+    const dailyGoalField = namedField(form, "daily_goal_minutes");
+    const weeklyGoalField = namedField(form, "weekly_goal_minutes");
+    const monthlyGoalField = namedField(form, "monthly_goal_minutes");
+    if (subjectIdField) subjectIdField.value = String(subject.id);
+    if (nameField) nameField.value = subject.name || "";
+    if (colorField) colorField.value = subject.color || "#5E8CFF";
+    if (dailyGoalField) dailyGoalField.value = String(subject.daily_goal_minutes ?? 60);
+    if (weeklyGoalField) weeklyGoalField.value = String(subject.weekly_goal_minutes ?? 420);
+    if (monthlyGoalField) monthlyGoalField.value = String(subject.monthly_goal_minutes ?? 1800);
+    state.editingSubjectId = Number(subject.id);
+    syncSubjectFormState();
+    nameField?.focus();
   }
 
   async function pollTimer() {
@@ -2755,9 +2808,17 @@
       event.preventDefault();
       const form = event.currentTarget;
       try {
-        await api("/api/subjects", { method: "POST", body: JSON.stringify(formData(form)) });
-        form.reset();
-        toast("Subject added.");
+        const payload = formData(form);
+        const subjectId = Number(payload.subject_id || 0);
+        delete payload.subject_id;
+        if (subjectId) {
+          await api(`/api/subjects/${subjectId}`, { method: "PATCH", body: JSON.stringify(payload) });
+          toast("Subject updated.");
+        } else {
+          await api("/api/subjects", { method: "POST", body: JSON.stringify(payload) });
+          toast("Subject added.");
+        }
+        resetSubjectForm();
         await loadBasics();
         await loadSubjectLibraryPanel();
       } catch (error) {
@@ -2765,6 +2826,36 @@
       }
     });
 
+    $("#focus-subject-cancel")?.addEventListener("click", () => {
+      resetSubjectForm();
+    });
+
+    $("#focus-subject-list")?.addEventListener("click", async (event) => {
+      const editButton = event.target.closest(".subject-edit");
+      if (editButton) {
+        startSubjectEditing(Number(editButton.dataset.id));
+        return;
+      }
+      const deleteButton = event.target.closest(".subject-delete");
+      if (!deleteButton) return;
+      const subjectId = Number(deleteButton.dataset.id);
+      const subjectName = deleteButton.dataset.name || "this subject";
+      const confirmed = window.confirm(
+        `Delete "${subjectName}"? Linked tasks and calendar blocks will lose the subject label. Subjects with recorded focus history cannot be deleted.`,
+      );
+      if (!confirmed) return;
+      try {
+        await api(`/api/subjects/${subjectId}`, { method: "DELETE" });
+        if (Number(state.editingSubjectId) === subjectId) resetSubjectForm();
+        toast("Subject deleted.");
+        await loadBasics();
+        await loadSubjectLibraryPanel();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    syncSubjectFormState();
     loadSubjectLibraryPanel().catch((error) => toast(error.message));
   }
 
@@ -2834,7 +2925,10 @@
     fillSubjectSelects();
     const list = $("#focus-subject-list");
     if (!list) return;
-    list.innerHTML = subjects.length ? subjects.map((subject) => `<article class="focus-subject-card" style="--subject-color:${escapeHtml(subject.color)}">
+    if (state.editingSubjectId && !subjects.some((subject) => Number(subject.id) === Number(state.editingSubjectId))) {
+      resetSubjectForm();
+    }
+    list.innerHTML = subjects.length ? subjects.map((subject) => `<article class="focus-subject-card ${Number(subject.id) === Number(state.editingSubjectId) ? "is-editing" : ""}" style="--subject-color:${escapeHtml(subject.color)}">
       <div class="focus-subject-card-head">
         <strong>${escapeHtml(subject.name)}</strong>
         <span class="focus-subject-dot"></span>
@@ -2843,6 +2937,10 @@
         <span>${subject.daily_goal_minutes}m day</span>
         <span>${subject.weekly_goal_minutes}m week</span>
         <span>${subject.monthly_goal_minutes}m month</span>
+      </div>
+      <div class="focus-subject-actions">
+        <button class="secondary-button subject-edit" type="button" data-id="${subject.id}">Edit</button>
+        <button class="danger-button subject-delete" type="button" data-id="${subject.id}" data-name="${escapeHtml(subject.name)}">Delete</button>
       </div>
     </article>`).join("") : '<div class="empty-state">No subjects yet. Add one to start tracking focus.</div>';
   }

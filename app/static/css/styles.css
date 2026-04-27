@@ -2192,6 +2192,13 @@ h1 {
   box-shadow: 0 18px 38px color-mix(in srgb, var(--subject-color) 12%, transparent);
 }
 
+.focus-subject-card.is-editing {
+  border-color: color-mix(in srgb, var(--subject-color) 42%, rgba(255, 255, 255, 0.38));
+  box-shadow:
+    0 24px 54px color-mix(in srgb, var(--subject-color) 20%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--subject-color) 24%, rgba(255, 255, 255, 0.18));
+}
+
 .focus-subject-card-head {
   display: flex;
   align-items: center;
@@ -2229,6 +2236,28 @@ h1 {
   color: var(--text-soft);
   font-size: 12px;
   font-weight: 700;
+}
+
+.focus-subject-form-actions,
+.focus-subject-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.focus-subject-form-actions {
+  align-items: center;
+}
+
+.focus-subject-actions {
+  margin-top: auto;
+}
+
+.focus-subject-actions .secondary-button,
+.focus-subject-actions .danger-button {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 .focus-form-panel input,

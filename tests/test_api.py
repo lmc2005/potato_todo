@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 
 import app.main as main_module
 from app.database import SessionLocal
-from app.models import AiDraft, Task, TimerState, now_local
+from app.models import AiDraft, StudySession, Task, TimerState, now_local
 
 
 def test_countdown_completion_updates_stats(client):
@@ -103,6 +103,85 @@ def test_overdue_task_is_marked_undone_and_can_be_completed_with_time(client):
     ).json()
     assert patched["status"] == "done"
     assert patched["completed_at"] == completed_at.isoformat()
+
+
+def test_subject_can_be_updated(client):
+    subject = client.post("/api/subjects", json={"name": "Biology", "color": "#34C759"}).json()
+    updated = client.patch(
+        f"/api/subjects/{subject['id']}",
+        json={
+            "name": "Advanced Biology",
+            "color": "#7C3AED",
+            "daily_goal_minutes": 75,
+            "weekly_goal_minutes": 420,
+            "monthly_goal_minutes": 1680,
+        },
+    )
+    assert updated.status_code == 200
+    payload = updated.json()
+    assert payload["name"] == "Advanced Biology"
+    assert payload["color"] == "#7C3AED"
+    assert payload["daily_goal_minutes"] == 75
+
+
+def test_subject_delete_detaches_tasks_and_events(client):
+    subject = client.post("/api/subjects", json={"name": "Geography", "color": "#0891B2"}).json()
+    task = client.post("/api/tasks", json={"title": "Map review", "subject_id": subject["id"]}).json()
+    start_at = now_local().replace(hour=18, minute=0, second=0)
+    end_at = start_at + timedelta(hours=1)
+    event = client.post(
+        "/api/schedule-events",
+        json={
+            "title": "Geography block",
+            "subject_id": subject["id"],
+            "task_id": task["id"],
+            "start_at": start_at.isoformat(),
+            "end_at": end_at.isoformat(),
+        },
+    ).json()
+
+    deleted = client.delete(f"/api/subjects/{subject['id']}")
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+    assert deleted.json()["detached_tasks"] == 1
+    assert deleted.json()["detached_events"] == 1
+
+    assert client.get("/api/subjects").json() == []
+    task_after = next(item for item in client.get("/api/tasks").json() if item["id"] == task["id"])
+    assert task_after["subject_id"] is None
+    event_after = next(item for item in client.get("/api/schedule-events").json() if item["id"] == event["id"])
+    assert event_after["subject_id"] is None
+
+
+def test_subject_delete_rejects_when_sessions_exist(client):
+    subject = client.post("/api/subjects", json={"name": "Economics", "color": "#F59E0B"}).json()
+    with SessionLocal() as db:
+        db.add(
+            StudySession(
+                subject_id=subject["id"],
+                mode="count_up",
+                started_at=now_local() - timedelta(minutes=45),
+                ended_at=now_local(),
+                focus_seconds=45 * 60,
+                paused_seconds=0,
+                stop_reason="manual_stop",
+            )
+        )
+        db.commit()
+
+    response = client.delete(f"/api/subjects/{subject['id']}")
+    assert response.status_code == 400
+    assert "cannot be deleted" in response.json()["detail"]
+
+
+def test_subject_delete_rejects_when_timer_is_active(client):
+    subject = client.post("/api/subjects", json={"name": "Art", "color": "#EC4899"}).json()
+    started = client.post("/api/timer/start", json={"mode": "count_up", "subject_id": subject["id"]})
+    assert started.status_code == 200
+
+    response = client.delete(f"/api/subjects/{subject['id']}")
+    assert response.status_code == 400
+    assert "Stop the active timer" in response.json()["detail"]
 
 
 def test_stats_include_task_completion_and_on_time_rates(client):

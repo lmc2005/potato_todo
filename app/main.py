@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import ROOT_DIR, SessionLocal, get_db, init_db
-from app.models import AiConversation, ScheduleEvent, Setting, StudySession, Subject, Task, now_local
+from app.models import AiConversation, ScheduleEvent, Setting, StudySession, Subject, Task, TimerState, now_local
 from app.schemas import (
     AiChatSendIn,
     AiRequestIn,
@@ -328,6 +328,42 @@ def update_subject(subject_id: int, data: SubjectPatch, db: Session = Depends(ge
         raise HTTPException(status_code=400, detail="Subject name already exists.") from exc
     db.refresh(subject)
     return serialize_subject(subject)
+
+
+@app.delete("/api/subjects/{subject_id}")
+def delete_subject(subject_id: int, db: Session = Depends(get_db)):
+    subject = db.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(status_code=404, detail="Subject not found.")
+
+    active_timer = db.query(TimerState).filter(TimerState.subject_id == subject_id).first()
+    if active_timer is not None:
+        raise HTTPException(status_code=400, detail="Stop the active timer before deleting this subject.")
+
+    session_count = db.query(StudySession).filter(StudySession.subject_id == subject_id).count()
+    if session_count:
+        raise HTTPException(
+            status_code=400,
+            detail="This subject already has recorded study sessions and cannot be deleted.",
+        )
+
+    detached_tasks = (
+        db.query(Task)
+        .filter(Task.subject_id == subject_id)
+        .update({Task.subject_id: None}, synchronize_session=False)
+    )
+    detached_events = (
+        db.query(ScheduleEvent)
+        .filter(ScheduleEvent.subject_id == subject_id)
+        .update({ScheduleEvent.subject_id: None}, synchronize_session=False)
+    )
+    db.delete(subject)
+    db.commit()
+    return {
+        "deleted": True,
+        "detached_tasks": detached_tasks,
+        "detached_events": detached_events,
+    }
 
 
 @app.get("/api/tasks")
