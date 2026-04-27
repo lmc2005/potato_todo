@@ -28,7 +28,7 @@ A local-first study planner built with Python, FastAPI, SQLite, and a lightweigh
 Open Terminal in the project folder:
 
 ```bash
-cd /path/to/self_development
+cd /path/to/potato_todo
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -52,7 +52,7 @@ http://127.0.0.1:8000
 Open PowerShell in the project folder:
 
 ```powershell
-cd C:\path\to\self_development
+cd C:\path\to\potato_todo
 py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -83,7 +83,7 @@ http://127.0.0.1:8000
 macOS:
 
 ```bash
-cd /path/to/self_development
+cd /path/to/potato_todo
 source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
@@ -91,7 +91,7 @@ uvicorn app.main:app --reload
 Windows PowerShell:
 
 ```powershell
-cd C:\path\to\self_development
+cd C:\path\to\potato_todo
 .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload
 ```
@@ -215,7 +215,7 @@ Only focus time is counted as study time. Break time is not counted.
 
 ### 5. Enable Notifications
 
-On the `Focus` page, click `Enable Notifications`. Your browser may ask for permission.
+On the `Focus` page, click `Enable Alerts`. Your browser may ask for permission.
 
 When a countdown or Pomodoro focus round finishes, the app tries to show:
 
@@ -232,10 +232,11 @@ Open `Analytics` and select a date range. The page shows:
 - Total focus time
 - Session count
 - Study streak
+- Active subjects in the selected range
 - Subject distribution
 - Task time ranking
 - Day-by-day trend chart
-- Balance and goal signals
+- Goal progress signals
 
 Use `Ask GPT` to generate an AI analysis draft for the selected date range.
 
