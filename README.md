@@ -1,29 +1,51 @@
-# Local Study Planner & Timer
+# POTATO-TODO
 
-A local-first study planner built with Python, FastAPI, SQLite, and a lightweight English web UI. It is designed for personal study tracking, Todo planning, schedule management, analytics, and optional GPT-assisted planning.
+POTATO-TODO is a local-first study planner for desktop browsers. It runs from source on your own machine, stores data in local SQLite, and covers focus timing, tasks, calendar scheduling, analytics, backups, and GPT-assisted planning/chat.
 
-## What It Does
+The UI is fully English. Time is based on the local machine clock. There is no account system, sync, or shared cloud database.
 
-- Tracks study time with count-up and countdown timers.
-- Supports configurable Pomodoro focus cycles.
-- Manages custom subjects with daily, weekly, and monthly study goals.
-- Manages Todo tasks with subject, priority, due date, estimate, notes, and completion state.
-- Provides a day/week schedule view for study blocks.
-- Provides day, week, and month calendar modes.
-- Shows a forced in-app reminder modal five minutes before a scheduled study block starts while the app page is open.
-- Shows analytics for total time, subject distribution, task ranking, streaks, goal completion, and study balance.
-- Connects to an OpenAI-compatible GPT endpoint with custom `base_url`, `api_key`, and `model`.
-- Creates AI planning and analysis drafts. AI output is never written to formal tasks or schedule events until you apply the draft.
-- Exports/imports full local JSON backups.
-- Keeps a disabled daily news API placeholder for future development.
+## Current Feature Set
+
+- Dashboard with daily quote, total focus time, live timer handoff, current streak, pending task count, today's tasks, and today's calendar.
+- Focus workspace with count up, countdown, Pomodoro, pause/resume, notification prompts, and subject-linked sessions.
+- Subject Library inside the Focus page with color and goal settings.
+- Task management with `todo`, `in_progress`, `undone`, and `done` states.
+- Automatic overdue handling: a task past its due time becomes `undone` until you explicitly finish it.
+- Overdue completion flow: changing an `undone` task to `done` requires an actual completion timestamp.
+- Calendar in day, week, month, and custom range modes.
+- Forced schedule reminder modal five minutes before an event starts while the app is open.
+- Analytics with subject breakdown, goal progress, study rhythm heatmap, daily trend, task ranking, and completion-rate trends.
+- GPT Assistant with two modes:
+  - `Planning`: creates draft tasks and, only when time/date intent is detected, draft calendar events.
+  - `Chat`: general chat with saved conversation history.
+- Per-item draft control in planning mode: each drafted task/event can be applied or dropped individually.
+- Daily quote endpoint powered by the configured model service, with fallback quote text if GPT is not configured.
+- JSON export/import backups and one-click clear-all-data with confirmation.
+- Backend console logging for HTTP requests/responses and full LLM request/response bodies.
+
+## Project Layout
+
+```text
+potato_todo/
+├── app/                  FastAPI app, templates, static assets, services
+├── backups/              Exported backups and automatic pre-import / pre-clear backups
+├── data/
+│   └── study.db          Local SQLite database
+├── scripts/
+│   └── seed_demo_data.py Demo data generator for analytics validation
+├── requirements.txt
+└── README.md
+```
 
 ## Requirements
 
-- Python 3.11 or newer. Python 3.12 is recommended.
-- Chrome or Edge on desktop.
-- No cloud database, account, login, or sync service is required.
+- Python 3.11 or newer
+- Chrome, Edge, or Safari on desktop
+- Network access only if you want to use GPT features
 
-## First-Time Setup on macOS
+## First-Time Setup
+
+### macOS
 
 Open Terminal in the project folder:
 
@@ -35,19 +57,19 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-Start the local server:
+Start the app:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Open the app:
+Open:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-## First-Time Setup on Windows
+### Windows PowerShell
 
 Open PowerShell in the project folder:
 
@@ -59,28 +81,28 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-If PowerShell blocks virtual environment activation, run this once in the same PowerShell window:
+If activation is blocked:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
-Start the local server:
+Start the app:
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Open the app:
+Open:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-## Starting the App Again Later
+## Start the App Later
 
-macOS:
+### macOS
 
 ```bash
 cd /path/to/potato_todo
@@ -88,7 +110,7 @@ source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-Windows PowerShell:
+### Windows PowerShell
 
 ```powershell
 cd C:\path\to\potato_todo
@@ -96,7 +118,22 @@ cd C:\path\to\potato_todo
 uvicorn app.main:app --reload
 ```
 
-If port `8000` is already in use, start on another port:
+If you already use a local environment named `.potato_todo_env`, that is also fine. Activate that environment instead of `.venv`.
+
+## Stop the App
+
+- Close the browser tab whenever you want. That only closes the UI.
+- Stop the backend server in the terminal running `uvicorn`:
+  - macOS: `Control + C`
+  - Windows: `Ctrl + C`
+
+Once the server stops, the local URL will stop responding until you launch it again.
+
+## Port Already in Use
+
+If `uvicorn` reports `Address already in use`, either switch ports or kill the old process.
+
+Start on another port:
 
 ```bash
 uvicorn app.main:app --reload --port 8001
@@ -108,193 +145,332 @@ Then open:
 http://127.0.0.1:8001
 ```
 
-## Closing the App
+Find and kill the old process on macOS:
 
-The web page itself can be closed like any browser tab. To stop the backend server:
-
-- macOS Terminal: press `Control + C` in the terminal running `uvicorn`.
-- Windows PowerShell: press `Ctrl + C` in the PowerShell window running `uvicorn`.
-
-After the server stops, `http://127.0.0.1:8000` will no longer load until you start it again.
-
-## Local Data and Backups
-
-The default SQLite database is stored at:
-
-```text
-data/study.db
+```bash
+lsof -iTCP:8000 -sTCP:LISTEN
+kill <PID>
 ```
 
-Backups are exported from the Settings page as JSON files. Importing a backup replaces the local database records after creating a pre-import backup in:
+Force kill if needed:
 
-```text
-backups/
+```bash
+kill -9 <PID>
 ```
 
-Recommended habit:
+Find and kill the old process on Windows:
 
-1. Export a JSON backup before major changes.
-2. Keep backup files outside the project folder if you are sharing the source code with another person.
-3. Do not share `data/study.db` unless you intentionally want to share your personal study records.
+```powershell
+netstat -ano | findstr :8000
+taskkill /PID <PID> /F
+```
+
+## Local Data and Sharing
+
+All user data stays local by default:
+
+- database: `data/study.db`
+- backups: `backups/`
+
+If you give this project to another person, they run their own local copy and generate their own local database. There is no built-in sync.
+
+Recommended practice:
+
+1. Export JSON before major changes.
+2. Keep backup files outside the repo if you are sharing the source code.
+3. Do not share `data/study.db` unless you intentionally want to share your own study records.
 
 ## GPT Configuration
 
-Open `Settings -> GPT` and fill:
+GPT-related settings are now split across two places.
 
-- `Base URL`: for example `https://api.openai.com/v1`, or another OpenAI-compatible endpoint.
-- `API Key`: your own key for that endpoint.
-- `Model`: for example `gpt-4o-mini`, or the model name supported by your endpoint.
+### Settings Page
 
-The app sends selected local study details to the configured model service only when you trigger AI planning or AI analysis. The app does not call GPT in the background.
+Use `Settings -> Model Service` for connection details:
 
-AI planning creates a draft. You must click `Apply Draft` before generated tasks or schedule events are written into the app.
+- `Base URL`
+- `API Key`
+
+Examples:
+
+- OpenAI: `https://api.openai.com/v1`
+- any other OpenAI-compatible endpoint that supports `/chat/completions`
+
+### GPT Assistant Page
+
+Use `GPT Assistant` for runtime choices:
+
+- `Model`
+  - `gpt-5.4` (default)
+  - `gpt-5.5`
+  - `gpt-5.3-codex`
+- `Reasoning`
+  - `Extra-high`
+  - `High`
+  - `Medium`
+  - `Low`
+
+### How GPT Is Used
+
+- `Planning` mode uses structured prompts and returns draft tasks/events.
+- `Chat` mode sends the user's message and saved conversation history without a built-in system prompt.
+- `AI Analysis` in the Analytics page sends the selected date-range snapshot for feedback.
+- The app prints full HTTP and LLM request/response logs to the backend console.
+
+Important:
+
+- Planning output is not written directly into formal data tables.
+- Draft tasks and calendar items must be applied manually, item by item.
+- If the planning prompt does not mention time/date intent, the planner favors tasks and avoids creating calendar blocks.
 
 ## Basic Usage
 
-### 1. Create Subjects
+### 1. Dashboard
 
-Open `Settings`, then add subjects such as:
+Open `/`.
 
-- Mathematics
-- English
-- Physics
-- Reading
+Use it to check:
 
-Each subject can have:
+- the daily quote
+- today's total focus time, or the live timer if a session is running
+- current streak
+- pending task count
+- today's tasks
+- today's schedule
 
-- Color
-- Daily goal minutes
-- Weekly goal minutes
-- Monthly goal minutes
+The date strip under the main visual lets you refresh the central summary for any custom range.
 
-Subject colors are used in the timer, task labels, calendar, and analytics views.
+### 2. Focus
 
-### 2. Create Tasks
+Open `/focus`.
 
-Open `Tasks` and create Todo items. A task can include:
+You can:
 
-- Title
-- Subject
-- Priority
-- Due date
-- Estimated minutes
-- Notes
+- start a `Count up` session
+- start a `Countdown` session
+- run a `Pomodoro`
+- pause, resume, stop, or skip Pomodoro break/focus transitions
+- enable browser notifications
+- add/edit subjects in the Subject Library
 
-Use `Start Focus` on a task to begin a count-up focus session linked to that task.
+Important timer behavior:
 
-### 3. Plan Calendar Blocks
+- `Count up` does not need a custom duration.
+- `Countdown` saves automatically when it finishes.
+- if a `Count up` session runs longer than 90 minutes and you stop it, the app asks whether to keep the recorded time or save an adjusted focus duration
+- only Pomodoro focus phases count toward study time; breaks do not
 
-Open `Calendar` to add study blocks. Use:
+### 3. Subjects
 
-- `Day` to show today.
-- `Week` to show the current week.
-- `Month` to show the current month.
-- Date fields to load a custom range.
+Subjects are managed from the bottom section of the Focus page.
 
-Each event can be linked to a subject and optionally to a task.
+Each subject has:
 
-When the app is open in the browser, scheduled events trigger an in-app modal reminder five minutes before their start time. If browser notifications are enabled, the app also attempts to show a system notification.
+- name
+- color
+- daily goal minutes
+- weekly goal minutes
+- monthly goal minutes
 
-### 4. Start a Focus Session
+Those colors flow into tasks, calendar items, focus visuals, and analytics charts.
 
-Open `Focus`.
+### 4. Tasks
 
-Free timer options:
+Open `/tasks`.
 
-- `Count up`: tracks an open-ended session until you stop it.
-- `Countdown`: runs for a chosen number of minutes and saves when finished.
+Use Tasks for things you need to finish, regardless of whether you already know the exact study time slot.
 
-Pomodoro options:
+Each task supports:
 
-- Focus minutes
-- Short break minutes
-- Long break minutes
-- Number of rounds
+- title
+- subject
+- priority
+- due datetime
+- estimated minutes
+- notes
 
-Only focus time is counted as study time. Break time is not counted.
+Task statuses:
 
-### 5. Enable Notifications
+- `todo`
+- `in_progress`
+- `undone`
+- `done`
 
-On the `Focus` page, click `Enable Alerts`. Your browser may ask for permission.
+Behavior:
 
-When a countdown or Pomodoro focus round finishes, the app tries to show:
+- tasks past their due time automatically become `undone` if they were not completed
+- `done` tasks are visually separated from unfinished tasks
+- marking an `undone` task as `done` opens a dialog asking for the real completion time
+- `Start Focus` launches a study session directly from a task
 
-- In-page completion dialog
-- Short sound
-- Browser system notification
+When to use `Task` vs `Calendar`:
 
-If browser notifications are denied, the in-page dialog and sound still work while the page is open.
+- use `Task` for work that must be completed
+- use `Calendar` when the timing of that work matters
+- one task can exist without a calendar slot
+- one calendar block can optionally link to a task
 
-### 6. Review Analytics
+### 5. Calendar
 
-Open `Analytics` and select a date range. The page shows:
+Open `/calendar`.
 
-- Total focus time
-- Session count
-- Study streak
-- Active subjects in the selected range
-- Subject distribution
-- Task time ranking
-- Day-by-day trend chart
-- Goal progress signals
+Available views:
 
-Use `Ask GPT` to generate an AI analysis draft for the selected date range.
+- `Day`
+- `Week`
+- `Month`
+- custom date range
 
-### 7. Generate AI Plans
+Calendar behavior:
 
-Open `Settings -> AI Planner`, choose a date range, and write an instruction such as:
+- add manual study blocks with start/end time
+- optionally link a block to a subject or task
+- click a day in month view to jump into that day's event details
+- while the app is open, a reminder modal appears five minutes before an event begins
 
-```text
-Plan my next study blocks based on overdue tasks and weak subjects.
+If browser notifications are allowed, the app also tries to show a system notification.
+
+### 6. Analytics
+
+Open `/analytics`.
+
+Select a range and review:
+
+- `Total focus`
+- `Streak`
+- `Focus Time by Subject`
+- `Subject Goal Completion`
+- `Study Rhythm`
+- `Subject Details`
+- `Task Ranking`
+- `Daily Trend`
+- `Completion Rate Trend`
+- `AI Analysis`
+
+Chart meaning:
+
+- `Focus Time by Subject`: current-day focus distribution by subject
+- `Subject Goal Completion`: current-week progress against each subject's configured goals
+- `Study Rhythm`: weekday/hour heatmap
+  - `No focus`: no sessions recorded
+  - `Light focus`: low activity
+  - `Steady focus`: regular concentration
+  - `Peak focus`: strongest concentration window
+- `Daily Trend`: line chart of total focus time per day
+- `Completion Rate Trend`: two daily curves
+  - overall task completion rate
+  - on-time completion rate
+
+### 7. GPT Assistant
+
+Open `/assistant`.
+
+It has two modes.
+
+#### Planning Mode
+
+Use this when you want GPT to turn your current tasks, schedule, and study history into an actionable draft.
+
+Flow:
+
+1. choose `Start` and `End`
+2. enter a planning instruction
+3. send the prompt
+4. review the planner thread
+5. apply or drop each drafted task/event individually
+
+If you do not mention time windows or dates, the planner mainly returns tasks. If you explicitly mention time blocks, days, or hours, it may also return calendar entries.
+
+#### Chat Mode
+
+Use this for free conversation, similar to a general chatbot.
+
+Features:
+
+- saved conversation history
+- reopen previous chats
+- delete a chat thread
+- `Enter` sends
+- `Shift + Enter` adds a new line
+
+### 8. Settings
+
+Open `/settings`.
+
+This page handles:
+
+- GPT connection settings
+- default Pomodoro values
+- JSON export/import
+- full local data clear with confirmation
+
+When importing or clearing data, the app automatically creates a backup first.
+
+## Demo Data for Analytics Validation
+
+If you want realistic sample data from `2026-03-10` through `2026-04-27`, use the seeding script:
+
+### macOS / Linux
+
+```bash
+cd /path/to/potato_todo
+source .venv/bin/activate
+PYTHONPATH=. python scripts/seed_demo_data.py
 ```
 
-The model returns a structured draft. Review it, then click `Apply Draft` if you want to create the proposed tasks or schedule events.
+### Windows PowerShell
+
+```powershell
+cd C:\path\to\potato_todo
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH="."
+python scripts\seed_demo_data.py
+```
+
+What it does:
+
+- creates a safety backup first
+- clears current app data
+- inserts demo subjects
+- inserts demo tasks
+- inserts schedule events
+- inserts focus sessions with varied durations and dates
+
+Use it only when you want to replace current local data with test/demo content.
 
 ## Tests
 
-Run tests from the activated virtual environment:
+Run the test suite from an activated virtual environment:
 
 ```bash
 pytest
 ```
 
-The test suite uses a separate test database path and mocks no external GPT calls.
-
 ## Troubleshooting
 
-### The browser says the site cannot be reached
+### The page opens but no data changes happen
 
-Make sure the `uvicorn` command is still running. If the terminal was closed, start the app again.
+Make sure the `uvicorn` terminal is still running. If the server was stopped, the browser page may remain open but API requests will fail.
 
-### Port 8000 is already in use
+### Countdown or reminders do not show system notifications
 
-Use another port:
+The app still works without system notifications. You need to:
 
-```bash
-uvicorn app.main:app --reload --port 8001
-```
+1. keep the page open
+2. click `Enable Alerts`
+3. grant browser notification permission
 
-### GPT requests fail
+The in-page dialog and sound are still used when possible.
 
-Check:
+### GPT calls fail
 
-- Base URL ends at the API root, usually `/v1`.
-- API key is valid.
-- Model name exists on the configured endpoint.
-- The endpoint supports OpenAI-compatible `chat/completions`.
+Check all of the following:
 
-### Notifications do not appear
+1. `Settings -> Model Service` has a valid `Base URL` and `API Key`
+2. `GPT Assistant` has a valid model selected
+3. the endpoint supports `/chat/completions`
+4. the backend console output for the exact request and full response body
 
-Check:
+### I want a clean reset
 
-- Browser notification permission.
-- System notification settings.
-- The Focus page is open.
-
-If the browser or local server is fully closed, immediate notifications are not guaranteed. Timer state is reconciled when the app is opened again.
-
-## Clearing All Data
-
-Open `Settings -> Danger Zone` and click `Clear All Data`.
-
-The app asks you to type `CLEAR` before it calls the clear-data API. A pre-clear backup JSON file is created in `backups/`, then the local database records are removed.
+Use `Settings -> Clear All Data`. The app requires confirmation and creates a backup first.
