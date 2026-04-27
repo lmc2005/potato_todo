@@ -1,60 +1,76 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="dashboard-stage dashboard-stage-refined">
-  <article class="glass-panel hero-panel dashboard-hero dashboard-hero-refined" data-tilt>
-    <div class="hero-panel-copy">
-      <p class="eyebrow">Study Operations</p>
-      <h1>One surface for today's focus, tasks, and schedule.</h1>
-      <p class="lead-text">Keep the overview tight: total focus in the selected range, current momentum, open work, and the next items that need attention.</p>
-      <div class="hero-actions">
-        <a class="primary-button" href="/focus">Start Focus</a>
-        <a class="secondary-button" href="/tasks">Open Tasks</a>
-        <a class="secondary-button" href="/calendar">Open Calendar</a>
+<section class="dashboard-stage dashboard-reframed">
+  <article class="glass-panel dashboard-clock-panel" data-tilt>
+    <div class="dashboard-command-head">
+      <div class="dashboard-command-copy">
+        <p class="eyebrow">Today at a Glance</p>
+        <h1>Today's total, current momentum, and the next work that matters.</h1>
       </div>
     </div>
 
-    <div class="hero-visual-stack">
-      <div class="hero-meter-shell">
-        <div class="hero-meter" id="dash-hero-meter" style="--meter-color: #2563eb; --meter-progress: 0deg;">
-          <span>Selected range</span>
-          <strong id="dash-hero-total">0h 00m</strong>
-          <small id="dash-hero-subtitle">No sessions yet</small>
-          <div class="hero-meter-ring hero-meter-ring-a"></div>
-          <div class="hero-meter-ring hero-meter-ring-b"></div>
+    <div class="dashboard-glance-grid">
+      <div class="dashboard-clock-stack">
+        <div class="dashboard-clock-visual">
+          <div class="dashboard-clock-shell">
+            <div class="dashboard-clock-facet facet-a" aria-hidden="true"></div>
+            <div class="dashboard-clock-facet facet-b" aria-hidden="true"></div>
+            <div class="dashboard-clock-facet facet-c" aria-hidden="true"></div>
+            <div class="dashboard-clock-lattice" aria-hidden="true"></div>
+            <div class="dashboard-clock-aura aura-a" aria-hidden="true"></div>
+            <div class="dashboard-clock-aura aura-b" aria-hidden="true"></div>
+            <div class="dashboard-clock-grid" aria-hidden="true"></div>
+            <div class="dashboard-clock-rings" aria-hidden="true">
+              <span class="ring-a"></span>
+              <span class="ring-b"></span>
+              <span class="ring-c"></span>
+            </div>
+            <div class="dashboard-clock-orbit orbit-a" aria-hidden="true"></div>
+            <div class="dashboard-clock-orbit orbit-b" aria-hidden="true"></div>
+            <div class="dashboard-clock-beam" aria-hidden="true"></div>
+            <canvas id="dashboard-clock-canvas" class="dashboard-clock-canvas" width="680" height="520"></canvas>
+            <div class="dashboard-clock-overlay">
+              <span id="dashboard-hero-label">Today's total</span>
+              <strong id="dashboard-local-time">00:00:00</strong>
+              <small id="dashboard-local-date">{{ today }}</small>
+            </div>
+            <div class="glass-inset dashboard-visual-actions">
+              <div class="hero-actions">
+                <a class="primary-button" href="/focus">Start Focus</a>
+                <a class="secondary-button" href="/tasks">View Tasks</a>
+                <a class="secondary-button" href="/calendar">Open Calendar</a>
+              </div>
+              <form class="range-controls dashboard-range-strip" id="dashboard-range">
+                <label>Start <input type="date" name="start" value="{{ today }}"></label>
+                <label>End <input type="date" name="end" value="{{ today }}"></label>
+                <button class="secondary-button" type="submit">Refresh</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="spark-card dashboard-spark-card">
-        <div class="spark-card-header">
-          <span class="mini-kicker">Daily signal</span>
-          <span class="mini-meta">Local trend</span>
+
+      <div class="dashboard-clock-summary">
+        <div class="dashboard-kpi-strip dashboard-kpi-strip-tight">
+          <article class="metric glass-inset dashboard-kpi-card">
+            <span>Total focus</span>
+            <strong id="dash-total">0h 00m</strong>
+            <small id="dash-session-count">0 sessions</small>
+          </article>
+          <article class="metric glass-inset dashboard-kpi-card">
+            <span>Current streak</span>
+            <strong id="dash-streak">0 days</strong>
+            <small>Active study days in a row</small>
+          </article>
+          <article class="metric glass-inset dashboard-kpi-card">
+            <span>Pending tasks</span>
+            <strong id="dash-open-tasks">0</strong>
+            <small>Items not completed</small>
+          </article>
         </div>
-        <canvas id="dash-sparkline" class="sparkline-canvas" width="420" height="130"></canvas>
       </div>
     </div>
 
-    <form class="range-controls hero-range dashboard-range-strip" id="dashboard-range">
-      <label>Start <input type="date" name="start" value="{{ today }}"></label>
-      <label>End <input type="date" name="end" value="{{ today }}"></label>
-      <button class="secondary-button" type="submit">Refresh</button>
-    </form>
-
-    <div class="dashboard-kpi-strip">
-      <article class="metric glass-inset dashboard-kpi-card">
-        <span>Total focus</span>
-        <strong id="dash-total">0h 00m</strong>
-        <small id="dash-session-count">0 sessions</small>
-      </article>
-      <article class="metric glass-inset dashboard-kpi-card">
-        <span>Current streak</span>
-        <strong id="dash-streak">0 days</strong>
-        <small>Active study days in a row</small>
-      </article>
-      <article class="metric glass-inset dashboard-kpi-card">
-        <span>Open tasks</span>
-        <strong id="dash-open-tasks">0</strong>
-        <small>Todo items waiting</small>
-      </article>
-    </div>
   </article>
 </section>
 

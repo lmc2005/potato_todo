@@ -11,14 +11,32 @@
 
     <div class="focus-stage-shell">
       <div class="timer-stage" id="timer-stage" style="--progress: 0deg; --session-color: #2563eb;">
+        <div class="focus-stage-glow glow-a" aria-hidden="true"></div>
+        <div class="focus-stage-glow glow-b" aria-hidden="true"></div>
+        <div class="focus-stage-grid" aria-hidden="true"></div>
+        <div class="focus-prism prism-a" aria-hidden="true"></div>
+        <div class="focus-prism prism-b" aria-hidden="true"></div>
+        <div class="focus-crystal crystal-a" aria-hidden="true"></div>
+        <div class="focus-crystal crystal-b" aria-hidden="true"></div>
+        <div class="focus-crystal crystal-c" aria-hidden="true"></div>
+        <canvas id="focus-stage-canvas" class="focus-stage-canvas" width="760" height="760" aria-hidden="true"></canvas>
         <div class="focus-orbit orbit-a" aria-hidden="true"></div>
         <div class="focus-orbit orbit-b" aria-hidden="true"></div>
         <div class="focus-orbit orbit-c" aria-hidden="true"></div>
+        <div class="focus-core-disc" aria-hidden="true"></div>
         <div class="progress-ring" aria-hidden="true"></div>
         <div class="progress-sheen" aria-hidden="true"></div>
-        <div class="timer-display">
+        <div class="timer-display" id="timer-display">
           <span id="focus-mode">Ready</span>
-          <strong id="focus-clock">00:00:00</strong>
+          <div class="focus-display-flip" id="focus-display-flip">
+            <div class="focus-display-face focus-display-front">
+              <strong id="focus-clock">00:00:00</strong>
+            </div>
+            <div class="focus-display-face focus-display-back">
+              <strong id="focus-paused-card">PAUSE</strong>
+            </div>
+          </div>
+          <div class="focus-active-subject" id="focus-active-subject">No subject selected</div>
           <small id="focus-meta">Choose a subject and start.</small>
         </div>
       </div>
@@ -93,6 +111,24 @@
       </form>
     </article>
   </div>
+
+  <article class="glass-panel focus-form-panel focus-subject-library" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Subjects</p>
+        <h2>Subject Library</h2>
+      </div>
+    </div>
+    <form id="focus-subject-form" class="form-grid focus-subject-create">
+      <label>Name <input name="name" required maxlength="120" placeholder="Mathematics"></label>
+      <label>Color <input type="color" name="color" value="#5E8CFF"></label>
+      <label>Daily goal <input type="number" name="daily_goal_minutes" min="0" value="60"></label>
+      <label>Weekly goal <input type="number" name="weekly_goal_minutes" min="0" value="420"></label>
+      <label>Monthly goal <input type="number" name="monthly_goal_minutes" min="0" value="1800"></label>
+      <button class="primary-button" type="submit">Add Subject</button>
+    </form>
+    <div id="focus-subject-list" class="focus-subject-scroller"></div>
+  </article>
 </section>
 
 <dialog id="count-up-review-modal" class="glass-dialog focus-review-dialog">

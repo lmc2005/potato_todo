@@ -7,6 +7,20 @@
     calendarMode: "day",
     activeReminderId: null,
     activeReminderEvent: null,
+    assistantMode: "planning",
+    aiPlanConversation: [],
+    latestPlanDraft: null,
+    selectedPlanDraftId: null,
+    draftItemDecisions: {},
+    assistantTypingToken: 0,
+    aiChatSessions: [],
+    aiChatConversationId: null,
+    aiChatTitle: "New Chat",
+    aiChatThread: [],
+    chatTypingToken: 0,
+    dashboardClockStarted: false,
+    dashboardStats: null,
+    focusStageStarted: false,
   };
   const DATA_COLORS = ["#2563eb", "#0f766e", "#d97706", "#e11d48", "#0891b2", "#7c3aed", "#15803d"];
 
@@ -21,6 +35,12 @@
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function truncateText(value, max = 180) {
+    const text = String(value ?? "").trim();
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1)}...`;
   }
 
   async function api(path, options = {}) {
@@ -91,6 +111,17 @@
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
   }
 
+  function shortDateTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   function toLocalInputValue(value) {
     if (!value) return "";
     const date = new Date(value);
@@ -121,12 +152,24 @@
     return { start: localDateKey(start), end: localDateKey(end) };
   }
 
+  function defaultAnalyticsRange(days = 20) {
+    const end = new Date(`${window.APP_BOOT.today}T00:00:00`);
+    const start = new Date(end);
+    start.setDate(end.getDate() - (days - 1));
+    return { start: localDateKey(start), end: localDateKey(end) };
+  }
+
   function subjectById(id) {
     return state.subjects.find((subject) => Number(subject.id) === Number(id));
   }
 
   function cssVar(name, root = document.body) {
     return getComputedStyle(root).getPropertyValue(name).trim();
+  }
+
+  function scrollToBottom(root) {
+    if (!root) return;
+    root.scrollTop = root.scrollHeight;
   }
 
   function setupCanvas(canvas, height = 320, minWidth = 520) {
@@ -159,6 +202,62 @@
     return DATA_COLORS[index % DATA_COLORS.length];
   }
 
+  function colorWithAlpha(color, alpha = 1) {
+    const value = String(color || "").trim();
+    if (!value) return `rgba(80, 167, 255, ${alpha})`;
+    if (value.startsWith("#")) {
+      let hex = value.slice(1);
+      if (hex.length === 3) hex = hex.split("").map((char) => char + char).join("");
+      const int = Number.parseInt(hex, 16);
+      const r = (int >> 16) & 255;
+      const g = (int >> 8) & 255;
+      const b = int & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    const rgb = value.match(/\d+(\.\d+)?/g);
+    if (rgb && rgb.length >= 3) {
+      return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+    }
+    return value;
+  }
+
+  function safeCssColor(value, fallback = "#8ea2ff") {
+    const color = String(value || "").trim();
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) return color;
+    return fallback;
+  }
+
+  function priorityColor(priority) {
+    if (priority === "high") return "#ff5f8f";
+    if (priority === "low") return "#4bd6c8";
+    return "#f6b85f";
+  }
+
+  function isTodayRange(start, end) {
+    return start === window.APP_BOOT.today && end === window.APP_BOOT.today;
+  }
+
+  function subjectLabel(subjectId) {
+    const subject = subjectById(subjectId);
+    return subject ? subject.name : "No subject";
+  }
+
+  function draftItemKey(draftId, kind, index) {
+    return `${draftId}:${kind}:${index}`;
+  }
+
+  function getDraftItemDecision(draftId, kind, index) {
+    return state.draftItemDecisions[draftItemKey(draftId, kind, index)] || "pending";
+  }
+
+  function setDraftItemDecision(draftId, kind, index, decision) {
+    state.draftItemDecisions[draftItemKey(draftId, kind, index)] = decision;
+  }
+
+  function normalizeDraftEvents(payload) {
+    return Array.isArray(payload?.schedule_events) ? payload.schedule_events : Array.isArray(payload?.events) ? payload.events : [];
+  }
+
   function initSceneCanvas() {
     const canvas = $("#scene-canvas");
     if (!canvas) return;
@@ -170,6 +269,11 @@
       speed: 0.14 + (index % 5) * 0.03,
       spread: 0.16 + (index % 4) * 0.13,
       size: 18 + (index % 6) * 8,
+    }));
+    const meteors = Array.from({ length: 5 }, (_, index) => ({
+      seed: 2.1 + index * 0.81,
+      speed: 0.1 + index * 0.02,
+      offset: index * 0.22,
     }));
     let width = 0;
     let height = 0;
@@ -202,6 +306,13 @@
       glow.addColorStop(0.34, "rgba(79,124,255,0.08)");
       glow.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
+
+      const aurora = ctx.createLinearGradient(width * 0.12, 0, width * 0.86, height);
+      aurora.addColorStop(0, "rgba(80,167,255,0.06)");
+      aurora.addColorStop(0.46, "rgba(117,244,255,0.04)");
+      aurora.addColorStop(1, "rgba(255,180,92,0.05)");
+      ctx.fillStyle = aurora;
       ctx.fillRect(0, 0, width, height);
 
       ctx.save();
@@ -248,6 +359,43 @@
         ctx.restore();
       });
 
+      for (let index = 0; index < 14; index += 1) {
+        const progress = (t * 0.018 + index * 0.11) % 1;
+        const streakX = width * (0.1 + progress * 0.9);
+        const streakY = height * (0.12 + ((index * 37) % 100) / 100 * 0.48);
+        const streakLength = 80 + (index % 5) * 32;
+        const streak = ctx.createLinearGradient(streakX - streakLength, streakY + streakLength * 0.18, streakX, streakY);
+        streak.addColorStop(0, "rgba(255,255,255,0)");
+        streak.addColorStop(1, `rgba(255,255,255,${0.06 + (index % 4) * 0.02})`);
+        ctx.strokeStyle = streak;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(streakX - streakLength, streakY + streakLength * 0.18);
+        ctx.lineTo(streakX, streakY);
+        ctx.stroke();
+      }
+
+      meteors.forEach((meteor, index) => {
+        const cycle = (t * meteor.speed + meteor.offset) % 1;
+        const x = width * (1.08 - cycle * 1.2);
+        const y = height * (0.08 + cycle * 0.42 + index * 0.02);
+        const tail = 140 + index * 26;
+        const meteorGradient = ctx.createLinearGradient(x - tail, y - tail * 0.2, x, y);
+        meteorGradient.addColorStop(0, "rgba(255,255,255,0)");
+        meteorGradient.addColorStop(0.45, `${accent}22`);
+        meteorGradient.addColorStop(1, "rgba(255,255,255,0.84)");
+        ctx.strokeStyle = meteorGradient;
+        ctx.lineWidth = 1.6 + index * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(x - tail, y - tail * 0.2);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, 1.8 + index * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.88)";
+        ctx.fill();
+      });
+
       ctx.strokeStyle = `${accent}88`;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
@@ -288,6 +436,19 @@
         panel.style.setProperty("--tilt-y", "0deg");
       });
     });
+  }
+
+  function initDashboardParallax() {
+    if (document.body.dataset.page !== "dashboard") return;
+    const sync = () => {
+      const y = window.scrollY || 0;
+      document.documentElement.style.setProperty("--dashboard-scroll-half", `${(-y * 0.5).toFixed(2)}px`);
+      document.documentElement.style.setProperty("--dashboard-scroll-mid", `${(-y * 0.38).toFixed(2)}px`);
+      document.documentElement.style.setProperty("--dashboard-scroll-near", `${(-y * 0.26).toFixed(2)}px`);
+    };
+    sync();
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync, { passive: true });
   }
 
   async function loadBasics() {
@@ -341,12 +502,12 @@
   }
 
   function renderTimer(timer) {
-    const dashTitle = $("#dash-active-timer");
-    const dashMeta = $("#dash-active-meta");
     const focusCard = $("#focus-card");
     const timerStage = $("#timer-stage");
     const focusClock = $("#focus-clock");
     const focusMode = $("#focus-mode");
+    const focusDisplayFlip = $("#focus-display-flip");
+    const activeSubject = $("#focus-active-subject");
     const focusMeta = $("#focus-meta");
     const subjectPill = $("#focus-subject-pill");
     const phasePill = $("#focus-phase-pill");
@@ -368,12 +529,17 @@
         timerStage.style.setProperty("--progress", "0deg");
         timerStage.style.setProperty("--session-color", "#2563eb");
       }
-      if (dashTitle) dashTitle.textContent = "No active timer";
-      if (dashMeta) dashMeta.textContent = "Ready when you are.";
       if (focusClock) focusClock.textContent = "00:00:00";
       if (focusMode) focusMode.textContent = "Ready";
+      if (focusDisplayFlip) focusDisplayFlip.classList.remove("is-paused");
+      if (activeSubject) activeSubject.textContent = "No subject selected";
       if (focusMeta) focusMeta.textContent = "Choose a subject and start.";
-      if (subjectPill) subjectPill.textContent = "No subject";
+      if (subjectPill) {
+        subjectPill.textContent = "No subject";
+        subjectPill.style.background = "";
+        subjectPill.style.borderColor = "";
+        subjectPill.style.color = "";
+      }
       if (phasePill) phasePill.textContent = "Idle";
       if (progressPill) progressPill.textContent = "0%";
       if (elapsedStat) elapsedStat.textContent = "0m 00s";
@@ -389,6 +555,7 @@
       }
       if (stopButton) stopButton.disabled = true;
       if (skipButton) skipButton.disabled = true;
+      updateDashboardHeroDisplay();
       return;
     }
 
@@ -412,6 +579,9 @@
       timerStage.style.setProperty("--session-color", visualColor);
       timerStage.style.setProperty("--progress", `${Math.round(progressRatio * 360)}deg`);
     }
+    if (focusDisplayFlip) {
+      focusDisplayFlip.classList.toggle("is-paused", Boolean(timer.is_paused));
+    }
     if (sessionFlow) {
       sessionFlow.style.setProperty("--session-color", visualColor);
       const activeBars = Math.max(1, Math.ceil(progressRatio * 12));
@@ -420,12 +590,16 @@
       });
     }
 
-    if (dashTitle) dashTitle.textContent = timer.remaining_seconds !== null && timer.remaining_seconds !== undefined ? formatClock(timer.remaining_seconds) : formatDuration(timer.elapsed_seconds);
-    if (dashMeta) dashMeta.textContent = `${mode} / ${meta}`;
     if (focusClock) focusClock.textContent = formatClock(seconds);
-    if (focusMode) focusMode.textContent = mode;
+    if (focusMode) focusMode.textContent = timer.is_paused ? "Paused" : mode;
+    if (activeSubject) activeSubject.textContent = subject ? subject.name : "Unknown subject";
     if (focusMeta) focusMeta.textContent = meta;
-    if (subjectPill) subjectPill.textContent = subject ? subject.name : "Unknown subject";
+    if (subjectPill) {
+      subjectPill.textContent = subject ? subject.name : "Unknown subject";
+      subjectPill.style.background = colorWithAlpha(visualColor, 0.16);
+      subjectPill.style.borderColor = colorWithAlpha(visualColor, 0.34);
+      subjectPill.style.color = colorWithAlpha(visualColor, 1);
+    }
     if (phasePill) phasePill.textContent = timer.is_paused ? "Paused" : (isBreak ? "Break" : "Focus");
     if (progressPill) progressPill.textContent = timer.mode === "count_up" ? "Live" : `${Math.round(progressRatio * 100)}%`;
     if (elapsedStat) elapsedStat.textContent = formatDuration(timer.elapsed_seconds);
@@ -437,6 +611,7 @@
     }
     if (stopButton) stopButton.disabled = false;
     if (skipButton) skipButton.disabled = timer.mode !== "pomodoro";
+    updateDashboardHeroDisplay();
   }
 
   function notifyCompletion(reason) {
@@ -547,33 +722,55 @@
 
   function renderTaskItem(task, compact = false) {
     const isDone = task.status === "done";
-    const subject = task.subject ? `<span class="chip subject-chip" style="border-color:${escapeHtml(task.subject_color)}">${escapeHtml(task.subject)}</span>` : "";
-    const due = task.due_at ? `<span class="chip">Due ${escapeHtml(dateTimeLabel(task.due_at))}</span>` : "";
-    const estimate = task.estimated_minutes ? `<span class="chip">${task.estimated_minutes} min</span>` : "";
+    const status = task.status || "todo";
+    const priority = ["low", "medium", "high"].includes(task.priority) ? task.priority : "medium";
+    const accent = safeCssColor(task.subject_color, priorityColor(priority));
+    const dueDate = task.due_at ? new Date(task.due_at) : null;
+    const isOverdue = Boolean(dueDate && !isDone && dueDate.getTime() < Date.now());
+    const isDueToday = Boolean(dueDate && dueDate.toDateString() === new Date().toDateString());
+    const dueClass = isOverdue ? "is-overdue" : isDueToday ? "is-today" : "";
+    const subject = task.subject ? `<span class="chip subject-chip" style="border-color:${escapeHtml(accent)}">${escapeHtml(task.subject)}</span>` : "";
+    const due = task.due_at ? `<span class="chip task-due-chip ${dueClass}">Due ${escapeHtml(dateTimeLabel(task.due_at))}</span>` : "";
+    const estimate = task.estimated_minutes ? `<span class="chip task-estimate-chip">${task.estimated_minutes} min</span>` : "";
     const completed = task.completed_at ? `<span class="chip task-complete-chip">Completed ${escapeHtml(dateTimeLabel(task.completed_at))}</span>` : "";
-    const notes = task.notes ? `<small>${escapeHtml(task.notes)}</small>` : "";
+    const notes = task.notes ? `<p class="task-notes">${escapeHtml(task.notes)}</p>` : "";
+    const meta = `${subject}<span class="chip task-priority-chip">${escapeHtml(priority)}</span>${due}${estimate}`;
     const actions = compact
       ? ""
-      : `<div class="row-actions">
+      : `<div class="task-actions">
           ${isDone ? "" : `<button class="secondary-button task-start" data-id="${task.id}" data-subject="${task.subject_id || ""}">Start Focus</button>`}
           <button class="secondary-button task-done" data-id="${task.id}">${task.status === "done" ? "Reopen" : "Done"}</button>
           <button class="danger-button task-delete" data-id="${task.id}">Delete</button>
         </div>`;
-    return `<div class="list-item task-list-item ${isDone ? "is-done" : ""}">
-      <div class="list-item-header">
-        <div>
+    const classes = [
+      "list-item",
+      "task-list-item",
+      `priority-${priority}`,
+      `status-${status}`,
+      isDone ? "is-done" : "",
+      compact ? "is-compact" : "",
+      dueClass,
+    ].filter(Boolean).join(" ");
+    return `<article class="${classes}" style="--task-accent:${escapeHtml(accent)}">
+      <div class="task-accent-rail"><span></span></div>
+      <div class="task-main">
+        <div class="task-title-line">
+          <span class="task-priority-dot"></span>
           <strong>${escapeHtml(task.title)}</strong>
-          ${notes}
         </div>
-        <span class="chip task-status-chip ${isDone ? "is-done" : ""}">${escapeHtml(task.status.replace("_", " "))}</span>
+        ${notes}
+        <div class="tag-row task-meta">${meta}</div>
       </div>
-      <div class="tag-row">${subject}<span class="chip">${escapeHtml(task.priority)}</span>${due}${estimate}${completed}</div>
+      <div class="task-status-zone">
+        <span class="chip task-status-chip status-${escapeHtml(status)} ${isDone ? "is-done" : ""}">${escapeHtml(status.replace("_", " "))}</span>
+        ${completed}
+      </div>
       ${actions}
-    </div>`;
+    </article>`;
   }
 
   function sortTasksForDisplay(tasks, filter = "") {
-    const statusRank = { todo: 0, in_progress: 1, done: 2 };
+    const statusRank = { todo: 0, in_progress: 1, undone: 2, done: 3 };
     const dueValue = (task) => task.due_at ? new Date(task.due_at).getTime() : Number.POSITIVE_INFINITY;
     const createdValue = (task) => task.created_at ? new Date(task.created_at).getTime() : 0;
     return tasks.slice().sort((left, right) => {
@@ -588,13 +785,13 @@
     });
   }
 
-  function launchCelebration() {
-    const canvas = $("#celebration-canvas");
+  function launchCelebration(canvas = $("#celebration-canvas")) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(Math.round(rect.width || window.innerWidth), 320);
+    const height = Math.max(Math.round(rect.height || window.innerHeight), 220);
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
     canvas.style.width = `${width}px`;
@@ -602,21 +799,23 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     canvas.classList.add("is-active");
 
-    const originY = height * 0.72;
-    const bursts = [width * 0.28, width * 0.5, width * 0.72];
+    const originY = height * 0.74;
+    const bursts = [width * 0.2, width * 0.5, width * 0.8];
     const particles = [];
     bursts.forEach((originX, burstIndex) => {
-      for (let index = 0; index < 34; index += 1) {
-        const angle = (Math.PI * 2 * index) / 34 + burstIndex * 0.2;
-        const speed = 2.4 + Math.random() * 4.1;
+      for (let index = 0; index < 40; index += 1) {
+        const angle = (Math.PI * 2 * index) / 40 + burstIndex * 0.22;
+        const speed = 2.2 + Math.random() * 4.8;
         particles.push({
           x: originX,
-          y: originY - Math.random() * 70,
+          y: originY - Math.random() * 54,
           vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed - 3.8 - Math.random() * 2.4,
-          life: 50 + Math.random() * 16,
-          size: 3 + Math.random() * 4,
+          vy: Math.sin(angle) * speed - 3.2 - Math.random() * 2.6,
+          life: 54 + Math.random() * 20,
+          size: 2 + Math.random() * 4.5,
           color: DATA_COLORS[(index + burstIndex) % DATA_COLORS.length],
+          spin: (Math.random() - 0.5) * 0.3,
+          rotation: Math.random() * Math.PI,
         });
       }
     });
@@ -631,15 +830,27 @@
         particle.y += particle.vy;
         particle.vy += 0.12;
         particle.vx *= 0.992;
+        particle.rotation += particle.spin;
         const alpha = Math.max(0, particle.life / 66);
+        const size = Math.max(1.4, particle.size * alpha);
+        ctx.save();
+        ctx.translate(particle.x, particle.y);
+        ctx.rotate(particle.rotation);
         ctx.fillStyle = `${particle.color}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
+        ctx.fillRect(-size * 0.5, -size * 0.5, size, size * 1.8);
+        ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.9})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(particle.x, particle.y, particle.size * alpha, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(-size, 0);
+        ctx.lineTo(size, 0);
+        ctx.moveTo(0, -size);
+        ctx.lineTo(0, size);
+        ctx.stroke();
+        ctx.restore();
       });
 
       frame += 1;
-      if (frame < 72) {
+      if (frame < 84) {
         window.requestAnimationFrame(step);
         return;
       }
@@ -655,16 +866,69 @@
     const name = $("#task-complete-name");
     if (message) message.textContent = "Completed tasks +1";
     if (name) name.textContent = taskTitle;
-    if (modal && typeof modal.showModal === "function" && !modal.open) {
-      modal.showModal();
+    if (modal && typeof modal.showModal === "function") {
+      if (!modal.open) {
+        modal.showModal();
+      }
+      window.requestAnimationFrame(() => {
+        launchCelebration($("#task-complete-fireworks"));
+      });
       return;
     }
+    launchCelebration();
     toast("Completed tasks +1");
   }
 
   function celebrateTaskCompletion(taskTitle) {
-    launchCelebration();
     showTaskCompleteModal(taskTitle);
+  }
+
+  function requestTaskCompletionTime(task) {
+    return new Promise((resolve) => {
+      const modal = $("#task-completion-time-modal");
+      const form = $("#task-completion-time-form");
+      if (!modal || !form || typeof modal.showModal !== "function") {
+        resolve(toLocalInputValue(new Date().toISOString()));
+        return;
+      }
+      const taskIdField = namedField(form, "task_id");
+      const completedAtField = namedField(form, "completed_at");
+      const message = $("#task-completion-time-message");
+      if (taskIdField) taskIdField.value = task.id;
+      if (completedAtField) completedAtField.value = toLocalInputValue(task.due_at || new Date().toISOString());
+      if (message) message.textContent = `${task.title} is overdue. Enter the actual completion time before saving it as done.`;
+      let settled = false;
+      const cleanup = () => {
+        form.removeEventListener("submit", onSubmit);
+        modal.removeEventListener("close", onClose);
+      };
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+      const onSubmit = (event) => {
+        event.preventDefault();
+        if (event.submitter?.value === "cancel") {
+          finish(null);
+          modal.close();
+          return;
+        }
+        const value = completedAtField?.value || "";
+        if (!value) {
+          toast("Completion time is required.");
+          return;
+        }
+        finish(value);
+        modal.close();
+      };
+      const onClose = () => finish(null);
+      form.addEventListener("submit", onSubmit);
+      modal.addEventListener("close", onClose);
+      modal.showModal();
+      completedAtField?.focus();
+    });
   }
 
   function renderEventItem(event) {
@@ -702,24 +966,20 @@
   async function loadDashboard() {
     const form = $("#dashboard-range");
     const params = new URLSearchParams(new FormData(form));
-    const [stats, tasks, events] = await Promise.all([
+    const [stats, tasks, events, quote] = await Promise.all([
       api(`/api/stats?${params}`),
-      api("/api/tasks?status=todo"),
+      api("/api/tasks?status=pending"),
       api(`/api/schedule-events?start=${window.APP_BOOT.today}&end=${window.APP_BOOT.today}`),
+      api("/api/ai/daily-quote").catch(() => null),
     ]);
+    state.dashboardStats = stats;
     $("#dash-total").textContent = formatDuration(stats.total_seconds);
-    $("#dash-hero-total").textContent = formatDuration(stats.total_seconds);
-    $("#dash-hero-subtitle").textContent = `${stats.session_count} sessions / ${stats.streak_days} day streak`;
     $("#dash-session-count").textContent = `${stats.session_count} sessions`;
     $("#dash-streak").textContent = `${stats.streak_days} days`;
-    $("#dash-open-tasks").textContent = tasks.length;
-    const heroMeter = $("#dash-hero-meter");
-    if (heroMeter) {
-      const topSubject = stats.subject_breakdown[0];
-      heroMeter.style.setProperty("--meter-color", topSubject ? topSubject.color : "#2563eb");
-      heroMeter.style.setProperty("--meter-progress", `${Math.max(8, Math.round((topSubject ? topSubject.share : 0) * 360))}deg`);
-    }
-    drawDashboardSparkline(stats.daily_trend, stats.subject_breakdown[0]?.color || "#2563eb");
+    $("#dash-open-tasks").textContent = tasks.filter((task) => task.status !== "done").length;
+    renderDashboardQuote(quote);
+    initDashboardClock();
+    updateDashboardHeroDisplay();
 
     const subjects = $("#dash-subjects");
     if (subjects) {
@@ -735,8 +995,17 @@
 
     const taskList = $("#dash-tasks");
     if (taskList) {
-      taskList.classList.toggle("empty-state", tasks.length === 0);
-      taskList.innerHTML = tasks.length ? tasks.slice(0, 5).map((task) => renderTaskItem(task, true)).join("") : "No tasks yet.";
+      const upcomingTasks = sortTasksForDisplay(
+        tasks.filter((task) => task.due_at && task.due_at.slice(0, 10) >= window.APP_BOOT.today),
+        "",
+      );
+      const backlogTasks = sortTasksForDisplay(
+        tasks.filter((task) => !task.due_at || task.due_at.slice(0, 10) < window.APP_BOOT.today),
+        "",
+      );
+      const dashboardTasks = [...upcomingTasks, ...backlogTasks].slice(0, 5);
+      taskList.classList.toggle("empty-state", dashboardTasks.length === 0);
+      taskList.innerHTML = dashboardTasks.length ? dashboardTasks.map((task) => renderTaskItem(task, true)).join("") : "No tasks yet.";
     }
 
     const eventList = $("#dash-events");
@@ -744,6 +1013,435 @@
       eventList.classList.toggle("empty-state", events.length === 0);
       eventList.innerHTML = events.length ? events.slice(0, 5).map(renderEventSummary).join("") : "No events today.";
     }
+  }
+
+  function updateDashboardHeroDisplay() {
+    const labelEl = $("#dashboard-hero-label");
+    const valueEl = $("#dashboard-local-time");
+    const metaEl = $("#dashboard-local-date");
+    const form = $("#dashboard-range");
+    if (!labelEl || !valueEl || !metaEl) return;
+
+    const start = namedField(form, "start")?.value || window.APP_BOOT.today;
+    const end = namedField(form, "end")?.value || window.APP_BOOT.today;
+    const timer = state.timer;
+    const stats = state.dashboardStats;
+    if (timer && timer.active) {
+      const subject = subjectById(timer.subject_id);
+      labelEl.textContent = timer.is_paused ? "Paused focus" : "Live focus";
+      valueEl.textContent = formatClock(timer.elapsed_seconds || 0);
+      metaEl.textContent = [subject?.name, timer.mode === "pomodoro" ? `Round ${timer.pomodoro_round}/${timer.pomodoro_total_rounds}` : timer.mode.replace("_", " ")].filter(Boolean).join(" / ");
+      return;
+    }
+    if (!stats) {
+      labelEl.textContent = "Today's total";
+      valueEl.textContent = "0h 00m";
+      metaEl.textContent = "No sessions yet";
+      return;
+    }
+    labelEl.textContent = isTodayRange(start, end) ? "Today's total" : "Selected focus";
+    valueEl.textContent = formatDuration(stats.total_seconds);
+    metaEl.textContent = isTodayRange(start, end)
+      ? `${stats.session_count} sessions today`
+      : `${start} to ${end} / ${stats.session_count} sessions`;
+  }
+
+  function renderDashboardQuote(payload) {
+    const targets = [
+      {
+        text: $("#dash-quote-text"),
+        author: $("#dash-quote-author"),
+        source: $("#dash-quote-source"),
+      },
+      {
+        text: $("#dashboard-top-quote-text"),
+        author: $("#dashboard-top-quote-author"),
+        source: $("#dashboard-top-quote-source"),
+      },
+    ].filter((item) => item.text && item.author && item.source);
+    if (!targets.length) return;
+    if (!payload || !payload.quote || !payload.author) {
+      targets.forEach((target) => {
+        target.text.textContent = "Connect GPT Assistant to load today's quote.";
+        target.author.textContent = "-- POTATO-TODO";
+        target.source.textContent = "Local reminder";
+      });
+      return;
+    }
+    targets.forEach((target) => {
+      target.text.textContent = payload.quote;
+      target.author.textContent = `-- ${payload.author}`;
+      target.source.textContent = payload.source || "Unknown source";
+    });
+  }
+
+  function initDashboardClock() {
+    if (state.dashboardClockStarted) return;
+    const canvas = $("#dashboard-clock-canvas");
+    if (!canvas) return;
+    state.dashboardClockStarted = true;
+    const ctx = canvas.getContext("2d");
+    let frameId = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      width = Math.max(420, Math.round(rect.width || 680));
+      height = Math.max(360, Math.round(rect.height || 520));
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const particles = Array.from({ length: 42 }, (_, index) => ({
+      seed: 1 + index * 0.37,
+      orbit: 0.56 + (index % 9) * 0.065,
+      speed: 0.08 + (index % 7) * 0.013,
+      size: 1.3 + (index % 4) * 0.8,
+      axis: index % 2 === 0 ? 1 : -1,
+    }));
+
+    const draw = (timestamp) => {
+      const t = timestamp * 0.001;
+      const cx = width / 2;
+      const cy = height / 2 + 6;
+      const radius = Math.min(width, height) * 0.23;
+      ctx.clearRect(0, 0, width, height);
+
+      const accent = cssVar("--accent") || "#84deff";
+      const accent2 = cssVar("--accent-2") || "#ffd39f";
+      const accent3 = cssVar("--accent-3") || "#98a2ff";
+
+      const backgroundGlow = ctx.createRadialGradient(cx, cy, radius * 0.12, cx, cy, radius * 2.6);
+      backgroundGlow.addColorStop(0, "rgba(255,255,255,0.72)");
+      backgroundGlow.addColorStop(0.18, colorWithAlpha(accent, 0.28));
+      backgroundGlow.addColorStop(0.48, colorWithAlpha(accent2, 0.18));
+      backgroundGlow.addColorStop(0.74, colorWithAlpha(accent3, 0.14));
+      backgroundGlow.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = backgroundGlow;
+      ctx.fillRect(0, 0, width, height);
+
+      const shadowY = cy + radius * 1.36;
+      ctx.save();
+      ctx.translate(cx, shadowY);
+      ctx.scale(1.14, 0.24);
+      const shadow = ctx.createRadialGradient(0, 0, radius * 0.18, 0, 0, radius * 1.36);
+      shadow.addColorStop(0, "rgba(7,12,22,0.34)");
+      shadow.addColorStop(1, "rgba(7,12,22,0)");
+      ctx.fillStyle = shadow;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 1.06, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      const drawHex = (scale, rotation, strokeStyle, lineWidth, alpha = 1) => {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rotation);
+        ctx.beginPath();
+        for (let index = 0; index <= 6; index += 1) {
+          const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 6;
+          const x = Math.cos(angle) * radius * scale;
+          const y = Math.sin(angle) * radius * scale;
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.globalAlpha = alpha;
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      drawHex(1.56, t * 0.08, colorWithAlpha(accent, 0.12), 1.4);
+      drawHex(1.22, -t * 0.12, colorWithAlpha(accent3, 0.14), 1.2);
+      drawHex(0.94, t * 0.18, colorWithAlpha(accent2, 0.16), 1.1);
+
+      const orbitLayers = [
+        { rx: radius * 1.86, ry: radius * 0.56, lineWidth: 1.2, color: colorWithAlpha(accent, 0.18), speed: 0.16, rotate: 0.1 },
+        { rx: radius * 1.28, ry: radius * 1.52, lineWidth: 1.6, color: colorWithAlpha(accent3, 0.18), speed: -0.12, rotate: Math.PI / 4 },
+        { rx: radius * 2.02, ry: radius * 0.86, lineWidth: 1.1, color: colorWithAlpha(accent2, 0.18), speed: 0.09, rotate: Math.PI / 1.8 },
+      ];
+      orbitLayers.forEach((layer) => {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(layer.rotate + t * layer.speed);
+        ctx.strokeStyle = layer.color;
+        ctx.lineWidth = layer.lineWidth;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, layer.rx, layer.ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      particles.forEach((particle, index) => {
+        const angle = t * particle.speed * particle.axis + particle.seed;
+        const orbitX = radius * (1.34 + particle.orbit);
+        const orbitY = radius * (0.74 + particle.orbit * 0.54);
+        const x = cx + Math.cos(angle) * orbitX;
+        const y = cy + Math.sin(angle * 1.18) * orbitY * 0.62;
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, particle.size * 7);
+        const color = index % 3 === 0 ? accent : index % 3 === 1 ? accent2 : accent3;
+        glow.addColorStop(0, colorWithAlpha(color, 0.88));
+        glow.addColorStop(1, colorWithAlpha(color, 0));
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y, particle.size * 4.2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const arcGradient = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+      arcGradient.addColorStop(0, colorWithAlpha(accent, 0.92));
+      arcGradient.addColorStop(0.48, colorWithAlpha(accent2, 0.88));
+      arcGradient.addColorStop(1, colorWithAlpha(accent3, 0.92));
+      ctx.strokeStyle = arcGradient;
+      ctx.lineWidth = 12;
+      ctx.shadowColor = colorWithAlpha(accent, 0.24);
+      ctx.shadowBlur = 28;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.02, -Math.PI / 2 + Math.sin(t * 0.4) * 0.16, Math.PI * 1.38 + Math.sin(t * 0.6) * 0.22);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const sweepAngle = t * 0.92;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(sweepAngle);
+      const beam = ctx.createLinearGradient(radius * 0.12, 0, radius * 1.18, 0);
+      beam.addColorStop(0, colorWithAlpha(accent, 0.02));
+      beam.addColorStop(1, colorWithAlpha(accent2, 0.56));
+      ctx.strokeStyle = beam;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(radius * 0.12, 0);
+      ctx.lineTo(radius * 1.18, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      const portal = ctx.createRadialGradient(cx, cy, radius * 0.18, cx, cy, radius * 0.92);
+      portal.addColorStop(0, "rgba(255,255,255,0.92)");
+      portal.addColorStop(0.38, "rgba(247,250,255,0.54)");
+      portal.addColorStop(0.72, "rgba(236,244,255,0.18)");
+      portal.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = portal;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.94, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.74, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      for (let index = 0; index < 18; index += 1) {
+        const angle = -Math.PI / 2 + (Math.PI * 2 * index) / 18;
+        const inner = radius * 0.8;
+        const outer = index % 3 === 0 ? radius * 1.08 : radius * 0.96;
+        ctx.strokeStyle = index % 3 === 0 ? "rgba(23,32,42,0.16)" : "rgba(255,255,255,0.14)";
+        ctx.lineWidth = index % 3 === 0 ? 2 : 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+        ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.96)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(23,32,42,0.14)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      frameId = window.requestAnimationFrame(draw);
+    };
+
+    resize();
+    frameId = window.requestAnimationFrame(draw);
+    window.addEventListener("resize", resize, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      } else if (!document.hidden && !frameId) {
+        resize();
+        frameId = window.requestAnimationFrame(draw);
+      }
+    });
+  }
+
+  function initFocusStageCanvas() {
+    if (state.focusStageStarted) return;
+    const canvas = $("#focus-stage-canvas");
+    const root = $("#timer-stage");
+    if (!canvas || !root) return;
+    state.focusStageStarted = true;
+
+    const ctx = canvas.getContext("2d");
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let frameId = 0;
+    const shards = Array.from({ length: 24 }, (_, index) => ({
+      seed: 0.7 + index * 0.41,
+      orbit: 0.34 + (index % 7) * 0.085,
+      speed: 0.18 + (index % 5) * 0.04,
+      radius: 2 + (index % 4) * 0.8,
+    }));
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      width = Math.max(420, Math.round(rect.width || 760));
+      height = Math.max(420, Math.round(rect.height || 760));
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const drawPolygon = (sides, radius, rotation, color, lineWidth = 1) => {
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate(rotation);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      for (let index = 0; index <= sides; index += 1) {
+        const angle = (Math.PI * 2 * index) / sides;
+        const x = Math.cos(angle) * radius;
+        const y = Math.sin(angle) * radius;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const draw = (timestamp) => {
+      const t = timestamp * 0.001;
+      const progressValue = Number.parseFloat(root.style.getPropertyValue("--progress")) || 0;
+      const progressRatio = Math.max(0, Math.min(1, progressValue / 360));
+      const sessionColor = cssVar("--session-color", root) || cssVar("--accent");
+      const accent2 = cssVar("--accent-2");
+      const accent3 = cssVar("--accent-3");
+      const cx = width / 2;
+      const cy = height / 2;
+      const radius = Math.min(width, height) * 0.34;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const glow = ctx.createRadialGradient(cx, cy, radius * 0.14, cx, cy, radius * 1.4);
+      glow.addColorStop(0, colorWithAlpha(sessionColor, 0.28));
+      glow.addColorStop(0.46, colorWithAlpha(accent2, 0.12));
+      glow.addColorStop(0.76, colorWithAlpha(accent3, 0.08));
+      glow.addColorStop(1, colorWithAlpha(sessionColor, 0));
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.translate(cx, cy + radius * 0.78);
+      ctx.scale(1.1, 0.24);
+      const shadow = ctx.createRadialGradient(0, 0, radius * 0.16, 0, 0, radius * 1.12);
+      shadow.addColorStop(0, "rgba(8,12,24,0.28)");
+      shadow.addColorStop(1, "rgba(8,12,24,0)");
+      ctx.fillStyle = shadow;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 1.02, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      for (let index = 0; index < 18; index += 1) {
+        const row = index / 17;
+        const y = cy + radius * 0.18 + row * radius * 0.92;
+        ctx.strokeStyle = colorWithAlpha(sessionColor, 0.02 + row * 0.03);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - radius * 1.26, y);
+        ctx.lineTo(cx + radius * 1.26, y);
+        ctx.stroke();
+      }
+
+      for (let index = -7; index <= 7; index += 1) {
+        ctx.strokeStyle = colorWithAlpha(accent2, index % 2 === 0 ? 0.08 : 0.04);
+        ctx.beginPath();
+        ctx.moveTo(cx + index * radius * 0.18, cy + radius * 0.18);
+        ctx.lineTo(cx + index * radius * 0.46, cy + radius * 1.14);
+        ctx.stroke();
+      }
+
+      drawPolygon(6, radius * 1.04, t * 0.18, colorWithAlpha(sessionColor, 0.22), 1.2);
+      drawPolygon(6, radius * 0.78, -t * 0.14, colorWithAlpha(accent2, 0.18), 1.1);
+      drawPolygon(3, radius * 0.94, Math.PI / 2 + t * 0.24, colorWithAlpha(accent3, 0.16), 1);
+
+      const arcGradient = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+      arcGradient.addColorStop(0, colorWithAlpha(sessionColor, 0.92));
+      arcGradient.addColorStop(0.54, colorWithAlpha(accent2, 0.88));
+      arcGradient.addColorStop(1, colorWithAlpha(accent3, 0.9));
+      ctx.strokeStyle = arcGradient;
+      ctx.lineWidth = 9;
+      ctx.shadowColor = colorWithAlpha(sessionColor, 0.26);
+      ctx.shadowBlur = 28;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.92, -Math.PI / 2, -Math.PI / 2 + progressRatio * Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.strokeStyle = "rgba(255,255,255,0.14)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 0.92, 0, Math.PI * 2);
+      ctx.stroke();
+
+      shards.forEach((shard, index) => {
+        const angle = shard.seed + t * shard.speed;
+        const orbitX = radius * (1.06 + shard.orbit);
+        const orbitY = radius * (0.72 + shard.orbit * 0.56);
+        const x = cx + Math.cos(angle) * orbitX;
+        const y = cy + Math.sin(angle * 1.2) * orbitY * 0.72;
+        const color = index % 3 === 0 ? sessionColor : index % 3 === 1 ? accent2 : accent3;
+        const particle = ctx.createRadialGradient(x, y, 0, x, y, shard.radius * 7);
+        particle.addColorStop(0, colorWithAlpha(color, 0.9));
+        particle.addColorStop(1, colorWithAlpha(color, 0));
+        ctx.fillStyle = particle;
+        ctx.beginPath();
+        ctx.arc(x, y, shard.radius * 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const beamAngle = -Math.PI / 2 + progressRatio * Math.PI * 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(beamAngle);
+      const beam = ctx.createLinearGradient(0, 0, radius * 1.02, 0);
+      beam.addColorStop(0, colorWithAlpha(sessionColor, 0.02));
+      beam.addColorStop(1, colorWithAlpha(accent2, 0.48));
+      ctx.strokeStyle = beam;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(radius * 0.18, 0);
+      ctx.lineTo(radius * 1.02, 0);
+      ctx.stroke();
+      ctx.restore();
+
+      frameId = window.requestAnimationFrame(draw);
+    };
+
+    resize();
+    frameId = window.requestAnimationFrame(draw);
+    window.addEventListener("resize", resize, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && frameId) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      } else if (!document.hidden && !frameId) {
+        resize();
+        frameId = window.requestAnimationFrame(draw);
+      }
+    });
   }
 
   function drawDashboardSparkline(rows, color) {
@@ -854,9 +1552,15 @@
         if (target.classList.contains("task-done")) {
           const task = state.tasks.find((item) => Number(item.id) === Number(target.dataset.id));
           const completing = Boolean(task && task.status !== "done");
+          const payload = { status: task && task.status === "done" ? "todo" : "done" };
+          if (task?.status === "undone") {
+            const completedAt = await requestTaskCompletionTime(task);
+            if (!completedAt) return;
+            payload.completed_at = completedAt;
+          }
           await api(`/api/tasks/${target.dataset.id}`, {
             method: "PATCH",
-            body: JSON.stringify({ status: task && task.status === "done" ? "todo" : "done" }),
+            body: JSON.stringify(payload),
           });
           await loadTasks();
           if (completing && task) celebrateTaskCompletion(task.title);
@@ -1094,10 +1798,6 @@
     $("#analytics-total").textContent = formatDuration(stats.total_seconds);
     $("#analytics-sessions").textContent = `${stats.session_count} sessions`;
     $("#analytics-streak").textContent = `${stats.streak_days} days`;
-    $("#analytics-active-subjects").textContent = String(stats.subject_breakdown.length);
-    $("#analytics-active-subjects-detail").textContent = stats.subject_breakdown.length
-      ? `${stats.subject_breakdown.length} subjects with tracked focus time`
-      : "No study sessions yet.";
 
     const subjectList = $("#analytics-subjects");
     subjectList.classList.toggle("empty-state", stats.subject_breakdown.length === 0);
@@ -1115,6 +1815,7 @@
       ? stats.task_ranking.map((row) => `<div class="list-item"><div class="list-item-header"><strong>${escapeHtml(row.title)}</strong><span>${formatDuration(row.seconds)}</span></div></div>`).join("")
       : "No task timing data.";
     drawTrend(stats.daily_trend);
+    drawTaskRateTrend(stats.task_completion_trend);
     drawTodayFocusTime(todayStats.subject_breakdown);
     drawWeeklySubjectProgress(weekStats.goal_completion);
     drawRhythmHeatmap(stats.sessions);
@@ -1201,6 +1902,100 @@
         ctx.font = "600 11px system-ui";
         ctx.fillText(dateLabel(point.row.date), Math.max(8, point.x - 20), height - 18);
       }
+    });
+  }
+
+  function drawTaskRateTrend(rows) {
+    const canvas = $("#task-rate-chart");
+    const chart = setupCanvas(canvas, 320, 640);
+    if (!chart) return;
+    const { ctx, width, height } = chart;
+    if (!rows || rows.length === 0 || rows.every((row) => !row.total)) {
+      drawEmptyChart(canvas, "No due-task data in this range");
+      return;
+    }
+    const left = 62;
+    const right = 28;
+    const top = 36;
+    const bottom = 56;
+    const plotW = width - left - right;
+    const plotH = height - top - bottom;
+    const points = rows.map((row, index) => ({
+      x: left + (index / Math.max(rows.length - 1, 1)) * plotW,
+      row,
+    }));
+
+    ctx.strokeStyle = "rgba(23,32,42,0.10)";
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "rgba(72,84,108,0.92)";
+    ctx.font = "650 11px system-ui";
+    [0, 0.5, 1].forEach((tick) => {
+      const y = top + plotH - tick * plotH;
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(width - right, y);
+      ctx.stroke();
+      ctx.fillText(`${Math.round(tick * 100)}%`, 18, y + 4);
+    });
+    ctx.fillStyle = "#8ea2ff";
+    ctx.fillRect(left, 12, 18, 5);
+    ctx.fillStyle = "rgba(23,32,42,0.78)";
+    ctx.fillText("Completion rate", left + 26, 18);
+    ctx.fillStyle = "#20c997";
+    ctx.fillRect(left + 168, 12, 18, 5);
+    ctx.fillStyle = "rgba(23,32,42,0.78)";
+    ctx.fillText("On-time rate", left + 194, 18);
+
+    const valueToY = (value) => top + plotH - Math.max(0, Math.min(Number(value || 0), 1)) * plotH;
+    const drawSeries = (key, color) => {
+      ctx.beginPath();
+      let started = false;
+      let previous = null;
+      points.forEach((point) => {
+        const value = point.row[key];
+        if (value === null || value === undefined) {
+          previous = null;
+          return;
+        }
+        const current = { x: point.x, y: valueToY(value), value };
+        if (!started || !previous) {
+          ctx.moveTo(current.x, current.y);
+          started = true;
+        } else {
+          const midX = (previous.x + current.x) / 2;
+          ctx.quadraticCurveTo(previous.x, previous.y, midX, (previous.y + current.y) / 2);
+          ctx.quadraticCurveTo(current.x, current.y, current.x, current.y);
+        }
+        previous = current;
+      });
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      points.forEach((point) => {
+        const value = point.row[key];
+        if (value === null || value === undefined) return;
+        const y = valueToY(value);
+        ctx.beginPath();
+        ctx.arc(point.x, y, 3.8, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(point.x, y, 7, 0, Math.PI * 2);
+        ctx.strokeStyle = colorWithAlpha(color, 0.22);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+    };
+
+    drawSeries("completion_rate", "#8ea2ff");
+    drawSeries("on_time_rate", "#20c997");
+
+    points.forEach((point, index) => {
+      const shouldLabel = rows.length <= 10 || index === 0 || index === rows.length - 1 || index % Math.ceil(rows.length / 6) === 0;
+      if (!shouldLabel) return;
+      ctx.fillStyle = "rgba(23, 32, 42, 0.62)";
+      ctx.font = "600 11px system-ui";
+      ctx.fillText(dateLabel(point.row.date), Math.max(8, point.x - 20), height - 18);
     });
   }
 
@@ -1327,9 +2122,27 @@
         const value = matrix[day][hourIndex];
         const intensity = value / max;
         const x = left + hourIndex * (cellW + cellGap);
-        const hueColor = intensity > 0.66 ? "217,119,6" : intensity > 0.33 ? "15,118,110" : "37,99,235";
-        ctx.fillStyle = value ? `rgba(${hueColor}, ${0.18 + intensity * 0.72})` : "rgba(23,32,42,0.055)";
-        ctx.fillRect(x, y, cellW, cellH);
+        let fill = "rgba(23,32,42,0.060)";
+        let glow = "rgba(23,32,42,0)";
+        if (value) {
+          if (intensity >= 0.68) {
+            fill = `rgba(255, 184, 95, ${0.38 + intensity * 0.48})`;
+            glow = "rgba(255, 184, 95, 0.26)";
+          } else if (intensity >= 0.34) {
+            fill = `rgba(157, 178, 255, ${0.34 + intensity * 0.48})`;
+            glow = "rgba(157, 178, 255, 0.22)";
+          } else {
+            fill = `rgba(122, 230, 221, ${0.30 + intensity * 0.50})`;
+            glow = "rgba(122, 230, 221, 0.18)";
+          }
+        }
+        ctx.shadowColor = glow;
+        ctx.shadowBlur = value ? 10 : 0;
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.roundRect(x, y, cellW, cellH, 7);
+        ctx.fill();
+        ctx.shadowBlur = 0;
       });
     });
   }
@@ -1337,6 +2150,496 @@
   function renderJsonResult(root, payload, applyId = null) {
     root.classList.remove("empty-state");
     root.innerHTML = `${applyId ? `<div class="button-row"><button class="primary-button apply-draft" data-id="${applyId}">Apply Draft</button></div>` : ""}<pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>`;
+  }
+
+  function replaceLineBreaks(value) {
+    return escapeHtml(value).replaceAll("\n", "<br>");
+  }
+
+  function buildPlanNarrative(payload) {
+    const tasks = Array.isArray(payload?.tasks) ? payload.tasks : [];
+    const events = Array.isArray(payload?.schedule_events) ? payload.schedule_events : Array.isArray(payload?.events) ? payload.events : [];
+    const risks = Array.isArray(payload?.risks) ? payload.risks : [];
+    const lines = [];
+    if (payload?.summary) lines.push(String(payload.summary).trim());
+    if (tasks.length) {
+      lines.push(`Tasks:\n${tasks.map((task, index) => `${index + 1}. ${task.title}${task.estimated_minutes ? ` (${task.estimated_minutes} min)` : ""}${task.reason ? ` - ${task.reason}` : task.notes ? ` - ${task.notes}` : ""}`).join("\n")}`);
+    }
+    if (events.length) {
+      lines.push(`Calendar blocks:\n${events.map((event, index) => `${index + 1}. ${event.title} | ${dateTimeLabel(event.start_at)} - ${dateTimeLabel(event.end_at)}${event.reason ? ` | ${event.reason}` : event.notes ? ` | ${event.notes}` : ""}`).join("\n")}`);
+    }
+    if (risks.length) {
+      lines.push(`Risks:\n${risks.map((risk, index) => `${index + 1}. ${risk}`).join("\n")}`);
+    }
+    return lines.join("\n\n").trim() || "Draft ready.";
+  }
+
+  function renderAnalysisResult(root, payload) {
+    const sections = [
+      { title: "Summary", rows: payload?.summary ? [payload.summary] : [] },
+      { title: "Patterns", rows: Array.isArray(payload?.patterns) ? payload.patterns : [] },
+      { title: "Problems", rows: Array.isArray(payload?.problems) ? payload.problems : [] },
+      { title: "Goal Progress", rows: Array.isArray(payload?.goal_progress) ? payload.goal_progress : [] },
+      { title: "Recommendations", rows: Array.isArray(payload?.recommendations) ? payload.recommendations : [] },
+      { title: "Risks", rows: Array.isArray(payload?.risks) ? payload.risks : [] },
+    ].filter((section) => section.rows.length);
+    root.classList.remove("empty-state");
+    root.innerHTML = sections.length
+      ? sections.map((section) => `<section class="analysis-result-section">
+          <h4>${escapeHtml(section.title)}</h4>
+          <div class="analysis-result-list">
+            ${section.rows.map((row) => `<div class="analysis-result-item">${replaceLineBreaks(String(row))}</div>`).join("")}
+          </div>
+        </section>`).join("")
+      : '<div class="analysis-result-item">No analysis content returned.</div>';
+  }
+
+  function aiPlanConversationPayload() {
+    return state.aiPlanConversation.map((entry) => ({ role: entry.role, content: entry.content }));
+  }
+
+  function planDraftStats(payload) {
+    const eventRows = Array.isArray(payload?.schedule_events) ? payload.schedule_events : Array.isArray(payload?.events) ? payload.events : [];
+    return {
+      taskCount: Array.isArray(payload?.tasks) ? payload.tasks.length : 0,
+      eventCount: eventRows.length,
+      riskCount: Array.isArray(payload?.risks) ? payload.risks.length : 0,
+    };
+  }
+
+  function draftDecisionSummary(draft) {
+    const payload = draft?.payload || {};
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const events = normalizeDraftEvents(payload);
+    let applied = 0;
+    let dropped = 0;
+    tasks.forEach((_, index) => {
+      const decision = getDraftItemDecision(draft.id, "task", index);
+      if (decision === "applied") applied += 1;
+      if (decision === "dropped") dropped += 1;
+    });
+    events.forEach((_, index) => {
+      const decision = getDraftItemDecision(draft.id, "event", index);
+      if (decision === "applied") applied += 1;
+      if (decision === "dropped") dropped += 1;
+    });
+    const total = tasks.length + events.length;
+    return { total, applied, dropped, pending: Math.max(0, total - applied - dropped) };
+  }
+
+  function syncAiDraftStatusBadge() {
+    const badge = $("#ai-draft-status");
+    if (!badge) return;
+    if (!state.latestPlanDraft) {
+      badge.textContent = "No draft";
+      badge.className = "chip";
+      return;
+    }
+    const summary = draftDecisionSummary(state.latestPlanDraft);
+    if (summary.total === 0) {
+      badge.textContent = "Empty";
+      badge.className = "chip ai-draft-status-chip is-pending";
+      return;
+    }
+    if (summary.pending === 0) {
+      badge.textContent = "Handled";
+      badge.className = "chip ai-draft-status-chip is-applied";
+      return;
+    }
+    badge.textContent = `${summary.pending} pending`;
+    badge.className = "chip ai-draft-status-chip is-pending";
+  }
+
+  function renderAiPlanThread() {
+    const root = $("#ai-plan-thread");
+    if (!root) return;
+    if (!state.aiPlanConversation.length) {
+      root.classList.add("empty-state");
+      root.textContent = "Start a planning conversation. Ask for tasks first, and mention dates or time windows only when you want calendar blocks.";
+      return;
+    }
+    root.classList.remove("empty-state");
+    root.innerHTML = state.aiPlanConversation.map((entry, index) => {
+      if (entry.role === "user") {
+        return `<article class="ai-thread-message is-user">
+          <div class="ai-thread-meta"><span>You</span><span>${index + 1}</span></div>
+          <div class="ai-thread-body">${replaceLineBreaks(entry.display || entry.content)}</div>
+        </article>`;
+      }
+      const draft = entry.draft || {};
+      const stats = planDraftStats(draft.payload || {});
+      const selected = Number(state.selectedPlanDraftId) === Number(draft.id);
+      const isLoading = Boolean(entry.loading);
+      const body = isLoading ? "Planning your next draft..." : (entry.displayText || "Thinking through your plan...");
+      const meta = isLoading ? "Drafting" : (stats.eventCount ? `${stats.taskCount} tasks / ${stats.eventCount} blocks` : `${stats.taskCount} tasks`);
+      return `<article class="ai-thread-message is-assistant ${selected ? "is-selected" : ""} ${isLoading ? "is-loading" : ""}" ${draft.id ? `data-draft-id="${draft.id}"` : ""}>
+        <div class="ai-thread-meta"><span>Planner</span><span>${meta}</span></div>
+        <div class="ai-thread-body">${replaceLineBreaks(body)}</div>
+      </article>`;
+    }).join("");
+  }
+
+  function renderPlanTask(task, draftId, index) {
+    const decision = getDraftItemDecision(draftId, "task", index);
+    const subject = task.subject_id ? subjectLabel(task.subject_id) : "No subject";
+    return `<div class="plan-item ${decision !== "pending" ? `is-${decision}` : ""}">
+      <div class="plan-item-head">
+        <strong>${escapeHtml(task.title || "Untitled task")}</strong>
+        <span class="chip">${escapeHtml(task.priority || "medium")}</span>
+      </div>
+      <div class="tag-row">
+        <span class="chip">${escapeHtml(subject)}</span>
+        ${task.estimated_minutes ? `<span class="chip">${escapeHtml(task.estimated_minutes)} min</span>` : ""}
+      </div>
+      <div class="plan-item-actions">
+        <button class="primary-button plan-apply-task" type="button" data-draft-id="${draftId}" data-index="${index}" ${decision === "applied" ? "disabled" : ""}>${decision === "applied" ? "Applied" : "Apply"}</button>
+        <button class="secondary-button plan-drop-task" type="button" data-draft-id="${draftId}" data-index="${index}" ${decision === "dropped" ? "disabled" : ""}>${decision === "dropped" ? "Dropped" : "Drop"}</button>
+      </div>
+    </div>`;
+  }
+
+  function renderPlanEvent(event, draftId, index) {
+    const decision = getDraftItemDecision(draftId, "event", index);
+    const subject = event.subject_id ? subjectLabel(event.subject_id) : "No subject";
+    return `<div class="plan-item ${decision !== "pending" ? `is-${decision}` : ""}">
+      <div class="plan-item-head">
+        <strong>${escapeHtml(event.title || "Untitled block")}</strong>
+        <span class="chip">${escapeHtml(dateTimeLabel(event.start_at))}</span>
+      </div>
+      <div class="tag-row">
+        <span class="chip">${escapeHtml(dateTimeLabel(event.start_at))}</span>
+        <span class="chip">${escapeHtml(dateTimeLabel(event.end_at))}</span>
+        <span class="chip">${escapeHtml(subject)}</span>
+      </div>
+      <div class="plan-item-actions">
+        <button class="primary-button plan-apply-event" type="button" data-draft-id="${draftId}" data-index="${index}" ${decision === "applied" ? "disabled" : ""}>${decision === "applied" ? "Applied" : "Apply"}</button>
+        <button class="secondary-button plan-drop-event" type="button" data-draft-id="${draftId}" data-index="${index}" ${decision === "dropped" ? "disabled" : ""}>${decision === "dropped" ? "Dropped" : "Drop"}</button>
+      </div>
+    </div>`;
+  }
+
+  function renderAiPlanDraftPreview() {
+    const root = $("#ai-draft-result");
+    if (!root) return;
+    syncAiDraftStatusBadge();
+    if (!state.latestPlanDraft) {
+      root.classList.add("empty-state");
+      root.textContent = "No draft generated yet.";
+      return;
+    }
+    const draft = state.latestPlanDraft;
+    const payload = draft.payload || {};
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const events = normalizeDraftEvents(payload);
+    const summary = draftDecisionSummary(draft);
+    root.classList.remove("empty-state");
+    const countBits = [`${tasks.length} tasks`];
+    if (events.length) countBits.push(`${events.length} blocks`);
+    countBits.push(`${summary.pending} pending`);
+    root.innerHTML = `
+      <div class="plan-preview-meta">${countBits.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("")}</div>
+      <section class="ai-plan-section">
+        <h4>Tasks</h4>
+        <div class="ai-plan-list">${tasks.length ? tasks.map((task, index) => renderPlanTask(task, draft.id, index)).join("") : '<div class="plan-empty">No task suggestions in this draft.</div>'}</div>
+      </section>
+      ${events.length ? `<section class="ai-plan-section">
+        <h4>Calendar Blocks</h4>
+        <div class="ai-plan-list">${events.map((event, index) => renderPlanEvent(event, draft.id, index)).join("")}</div>
+      </section>` : ""}
+    `;
+  }
+
+  function pushAiPlanUserMessage(text) {
+    state.aiPlanConversation.push({
+      role: "user",
+      content: text,
+      display: text,
+    });
+    state.aiPlanConversation = state.aiPlanConversation.slice(-12);
+  }
+
+  function pushAiPlanAssistantPending() {
+    state.assistantTypingToken += 1;
+    state.aiPlanConversation.push({
+      role: "assistant",
+      content: "",
+      displayText: "Planning...",
+      narrative: "",
+      typed: false,
+      loading: true,
+      draft: null,
+    });
+    state.aiPlanConversation = state.aiPlanConversation.slice(-12);
+    renderAiPlanThread();
+  }
+
+  function animateLatestAssistantMessage() {
+    const entry = [...state.aiPlanConversation].reverse().find((item) => item.role === "assistant" && item.narrative && !item.loading);
+    if (!entry) return;
+    state.assistantTypingToken += 1;
+    const token = state.assistantTypingToken;
+    const root = $("#ai-plan-thread");
+    const finalText = entry.narrative;
+    let index = 0;
+    let lastTick = 0;
+    let nextDelay = 28;
+    renderAiPlanThread();
+    const resolveBodyNode = () => {
+      if (!root) return null;
+      const nodes = root.querySelectorAll(".ai-thread-message.is-assistant .ai-thread-body");
+      return nodes.length ? nodes[nodes.length - 1] : null;
+    };
+    let bodyNode = resolveBodyNode();
+    const step = (timestamp) => {
+      if (token !== state.assistantTypingToken) return;
+      if (!lastTick) lastTick = timestamp;
+      if (timestamp - lastTick < nextDelay) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+      if (!bodyNode || !bodyNode.isConnected) {
+        bodyNode = resolveBodyNode();
+      }
+      const nextChar = finalText.charAt(index) || "";
+      index = Math.min(finalText.length, index + 1);
+      entry.displayText = finalText.slice(0, index);
+      if (bodyNode) {
+        bodyNode.innerHTML = replaceLineBreaks(entry.displayText);
+      } else {
+        renderAiPlanThread();
+      }
+      if (root) root.scrollTop = root.scrollHeight;
+      lastTick = timestamp;
+      nextDelay = [".", "!", "?", "\n"].includes(nextChar) ? 90 : [",", ":"].includes(nextChar) ? 54 : nextChar === " " ? 10 : 18;
+      if (index < finalText.length) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+      entry.displayText = finalText;
+      entry.typed = true;
+      entry.loading = false;
+      renderAiPlanThread();
+    };
+    window.requestAnimationFrame(step);
+  }
+
+  function pushAiPlanAssistantDraft(draft) {
+    const narrative = buildPlanNarrative(draft.payload || {});
+    state.latestPlanDraft = draft;
+    state.selectedPlanDraftId = draft.id;
+    state.draftItemDecisions = Object.fromEntries(Object.entries(state.draftItemDecisions).filter(([key]) => !key.startsWith(`${draft.id}:`)));
+    const pendingEntry = [...state.aiPlanConversation].reverse().find((item) => item.role === "assistant" && item.loading);
+    if (pendingEntry) {
+      pendingEntry.content = narrative;
+      pendingEntry.displayText = "";
+      pendingEntry.narrative = narrative;
+      pendingEntry.typed = false;
+      pendingEntry.loading = false;
+      pendingEntry.draft = draft;
+    } else {
+      state.aiPlanConversation.push({
+        role: "assistant",
+        content: narrative,
+        displayText: "",
+        narrative,
+        typed: false,
+        loading: false,
+        draft,
+      });
+      state.aiPlanConversation = state.aiPlanConversation.slice(-12);
+    }
+    animateLatestAssistantMessage();
+  }
+
+  function clearAiPlanThread() {
+    state.assistantTypingToken += 1;
+    state.aiPlanConversation = [];
+    state.latestPlanDraft = null;
+    state.selectedPlanDraftId = null;
+    state.draftItemDecisions = {};
+    renderAiPlanThread();
+    renderAiPlanDraftPreview();
+  }
+
+  function setAssistantMode(mode) {
+    state.assistantMode = mode === "chat" ? "chat" : "planning";
+    const shell = $(".assistant-shell");
+    if (shell) shell.dataset.assistantMode = state.assistantMode;
+    $$("#assistant-mode-control button").forEach((button) => {
+      button.classList.toggle("active", button.dataset.mode === state.assistantMode);
+    });
+  }
+
+  function syncChatHeader() {
+    const title = $("#chat-thread-title");
+    const status = $("#ai-chat-status");
+    const count = $("#ai-chat-count");
+    const deleteButton = $("#ai-chat-delete");
+    if (title) title.textContent = state.aiChatTitle || "New Chat";
+    if (status) {
+      if (!state.aiChatThread.length) status.textContent = "Local chat history";
+      else if (state.aiChatConversationId) status.textContent = `${state.aiChatThread.length} messages`;
+      else status.textContent = "Unsaved draft";
+    }
+    if (count) count.textContent = `${state.aiChatSessions.length} ${state.aiChatSessions.length === 1 ? "chat" : "chats"}`;
+    if (deleteButton) deleteButton.disabled = !state.aiChatConversationId;
+  }
+
+  function chatMessageMetaLabel(message) {
+    if (message.loading) return "Thinking";
+    return shortDateTime(message.created_at) || (message.role === "user" ? "You" : "Assistant");
+  }
+
+  function renderAiChatThread() {
+    const root = $("#ai-chat-thread");
+    if (!root) return;
+    syncChatHeader();
+    if (!state.aiChatThread.length) {
+      root.classList.add("empty-state");
+      root.textContent = "Start a free conversation. Previous chats stay available in the history panel.";
+      return;
+    }
+    root.classList.remove("empty-state");
+    root.innerHTML = state.aiChatThread.map((entry) => `<article class="ai-thread-message ${entry.role === "user" ? "is-user" : "is-assistant"} ${entry.loading ? "is-loading" : ""}">
+      <div class="ai-thread-meta"><span>${entry.role === "user" ? "You" : "Assistant"}</span><span>${escapeHtml(chatMessageMetaLabel(entry))}</span></div>
+      <div class="ai-thread-body">${replaceLineBreaks(entry.displayText || entry.content || "")}</div>
+    </article>`).join("");
+    scrollToBottom(root);
+  }
+
+  function renderAiChatSessions() {
+    const root = $("#ai-chat-session-list");
+    if (!root) return;
+    syncChatHeader();
+    if (!state.aiChatSessions.length) {
+      root.className = "assistant-session-list empty-state";
+      root.textContent = "No saved chats yet.";
+      return;
+    }
+    root.className = "assistant-session-list";
+    root.innerHTML = state.aiChatSessions.map((session) => {
+      const isActive = Number(session.id) === Number(state.aiChatConversationId);
+      return `<button class="assistant-session-row ${isActive ? "is-active" : ""}" type="button" data-conversation-id="${session.id}">
+        <div class="assistant-session-copy">
+          <strong>${escapeHtml(session.title || "New Chat")}</strong>
+          <small>${escapeHtml(truncateText(session.preview || "No preview yet.", 84))}</small>
+        </div>
+        <span>${escapeHtml(shortDateTime(session.updated_at) || "")}</span>
+      </button>`;
+    }).join("");
+  }
+
+  function resetAiChatThread() {
+    state.chatTypingToken += 1;
+    state.aiChatConversationId = null;
+    state.aiChatTitle = "New Chat";
+    state.aiChatThread = [];
+    renderAiChatThread();
+    renderAiChatSessions();
+  }
+
+  function hydrateAiChatConversation(conversation) {
+    state.aiChatConversationId = conversation?.id ?? null;
+    state.aiChatTitle = conversation?.title || "New Chat";
+    state.aiChatThread = Array.isArray(conversation?.messages)
+      ? conversation.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          displayText: message.content,
+          created_at: message.created_at,
+          loading: false,
+        }))
+      : [];
+    renderAiChatThread();
+    renderAiChatSessions();
+  }
+
+  function pushAiChatUserMessage(text) {
+    state.aiChatThread.push({
+      role: "user",
+      content: text,
+      displayText: text,
+      created_at: new Date().toISOString(),
+      loading: false,
+    });
+    renderAiChatThread();
+  }
+
+  function pushAiChatAssistantPending() {
+    state.chatTypingToken += 1;
+    state.aiChatThread.push({
+      role: "assistant",
+      content: "",
+      displayText: "Thinking...",
+      created_at: new Date().toISOString(),
+      loading: true,
+    });
+    renderAiChatThread();
+  }
+
+  function animateLatestChatAssistantMessage() {
+    const entry = [...state.aiChatThread].reverse().find((item) => item.role === "assistant" && item.content && !item.loading && !item.typed);
+    if (!entry) return;
+    state.chatTypingToken += 1;
+    const token = state.chatTypingToken;
+    const root = $("#ai-chat-thread");
+    const finalText = entry.content;
+    let index = 0;
+    let lastTick = 0;
+    let nextDelay = 18;
+    let buffer = "";
+    renderAiChatThread();
+
+    const resolveBodyNode = () => {
+      if (!root) return null;
+      const nodes = root.querySelectorAll(".ai-thread-message.is-assistant .ai-thread-body");
+      return nodes.length ? nodes[nodes.length - 1] : null;
+    };
+    let bodyNode = resolveBodyNode();
+
+    const step = (timestamp) => {
+      if (token !== state.chatTypingToken) return;
+      if (!lastTick) lastTick = timestamp;
+      if (timestamp - lastTick < nextDelay) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+      if (!bodyNode || !bodyNode.isConnected) bodyNode = resolveBodyNode();
+      const remaining = finalText.length - index;
+      const batch = remaining > 40 ? 3 : remaining > 12 ? 2 : 1;
+      const slice = finalText.slice(index, index + batch);
+      index = Math.min(finalText.length, index + batch);
+      buffer += slice;
+      entry.displayText = buffer;
+      if (bodyNode) {
+        bodyNode.innerHTML = replaceLineBreaks(entry.displayText);
+      } else {
+        renderAiChatThread();
+      }
+      scrollToBottom(root);
+      lastTick = timestamp;
+      const pivot = slice.slice(-1);
+      nextDelay = [".", "!", "?", "\n"].includes(pivot) ? 68 : [",", ":"].includes(pivot) ? 34 : pivot === " " ? 8 : 14;
+      if (index < finalText.length) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+      entry.displayText = finalText;
+      entry.typed = true;
+      renderAiChatThread();
+    };
+    window.requestAnimationFrame(step);
+  }
+
+  async function loadAiChatSessions() {
+    state.aiChatSessions = await api("/api/ai/chat/sessions");
+    renderAiChatSessions();
+  }
+
+  async function loadAiChatConversation(conversationId) {
+    const conversation = await api(`/api/ai/chat/sessions/${conversationId}`);
+    hydrateAiChatConversation(conversation);
   }
 
   function bindAnalytics() {
@@ -1356,7 +2659,7 @@
       root.textContent = "Asking GPT...";
       try {
         const draft = await api("/api/ai/analyze", { method: "POST", body: JSON.stringify(body) });
-        renderJsonResult(root, draft.payload);
+        renderAnalysisResult(root, draft.payload);
       } catch (error) {
         root.textContent = error.message;
         root.classList.add("empty-state");
@@ -1366,6 +2669,8 @@
   }
 
   function bindFocus() {
+    initFocusStageCanvas();
+
     $("#request-notification")?.addEventListener("click", async () => {
       if (!("Notification" in window)) {
         toast("Browser notifications are unavailable.");
@@ -1445,6 +2750,22 @@
         if (input) input.value = settings[key];
       });
     }).catch(() => {});
+
+    $("#focus-subject-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      try {
+        await api("/api/subjects", { method: "POST", body: JSON.stringify(formData(form)) });
+        form.reset();
+        toast("Subject added.");
+        await loadBasics();
+        await loadSubjectLibraryPanel();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    loadSubjectLibraryPanel().catch((error) => toast(error.message));
   }
 
   function updateFreeTimerDurationVisibility() {
@@ -1507,51 +2828,323 @@
     });
   }
 
-  async function loadSubjectsForSettings() {
+  async function loadSubjectLibraryPanel() {
     const subjects = await api("/api/subjects");
     state.subjects = subjects;
     fillSubjectSelects();
-    const list = $("#subject-list");
+    const list = $("#focus-subject-list");
     if (!list) return;
-    list.innerHTML = subjects.length ? subjects.map((subject) => `<div class="list-item subject-settings-item">
-      <div class="list-item-header">
-        <div><strong>${escapeHtml(subject.name)}</strong><small>${subject.daily_goal_minutes}m daily / ${subject.weekly_goal_minutes}m weekly / ${subject.monthly_goal_minutes}m monthly</small></div>
-        <span class="chip" style="border-color:${escapeHtml(subject.color)}; background:${escapeHtml(subject.color)}18">Active</span>
+    list.innerHTML = subjects.length ? subjects.map((subject) => `<article class="focus-subject-card" style="--subject-color:${escapeHtml(subject.color)}">
+      <div class="focus-subject-card-head">
+        <strong>${escapeHtml(subject.name)}</strong>
+        <span class="focus-subject-dot"></span>
       </div>
-    </div>`).join("") : '<div class="empty-state">No subjects yet. Add one to start tracking focus.</div>';
+      <div class="focus-subject-goals">
+        <span>${subject.daily_goal_minutes}m day</span>
+        <span>${subject.weekly_goal_minutes}m week</span>
+        <span>${subject.monthly_goal_minutes}m month</span>
+      </div>
+    </article>`).join("") : '<div class="empty-state">No subjects yet. Add one to start tracking focus.</div>';
   }
 
-  function bindSettings() {
-    $("#subject-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
+  function taskPayloadFromDraft(task) {
+    return {
+      title: String(task.title || "").trim(),
+      subject_id: task.subject_id || null,
+      priority: ["low", "medium", "high"].includes(task.priority) ? task.priority : "medium",
+      estimated_minutes: task.estimated_minutes || null,
+      notes: task.notes || task.reason || null,
+    };
+  }
+
+  function eventPayloadFromDraft(event) {
+    return {
+      title: String(event.title || "").trim(),
+      subject_id: event.subject_id || null,
+      task_id: event.task_id || null,
+      start_at: event.start_at,
+      end_at: event.end_at,
+      source: "ai",
+      notes: event.notes || event.reason || null,
+    };
+  }
+
+  async function applyDraftTaskItem(draftId, index) {
+    const draft = state.latestPlanDraft;
+    const task = draft?.payload?.tasks?.[index];
+    if (!draft || !task) return;
+    await api("/api/tasks", { method: "POST", body: JSON.stringify(taskPayloadFromDraft(task)) });
+    setDraftItemDecision(draftId, "task", index, "applied");
+    renderAiPlanDraftPreview();
+    syncAiDraftStatusBadge();
+    await loadBasics();
+    await loadTasks().catch(() => {});
+    toast("Task applied.");
+  }
+
+  async function applyDraftEventItem(draftId, index) {
+    const draft = state.latestPlanDraft;
+    const event = normalizeDraftEvents(draft?.payload || {})[index];
+    if (!draft || !event) return;
+    await api("/api/schedule-events", { method: "POST", body: JSON.stringify(eventPayloadFromDraft(event)) });
+    setDraftItemDecision(draftId, "event", index, "applied");
+    renderAiPlanDraftPreview();
+    syncAiDraftStatusBadge();
+    await loadBasics();
+    await loadEvents().catch(() => {});
+    toast("Calendar block applied.");
+  }
+
+  function bindAssistant() {
+    api("/api/settings/llm").then((settings) => {
+      const form = $("#llm-model-form");
+      if (!form) return;
+      const modelField = namedField(form, "model");
+      const reasoningField = namedField(form, "reasoning_effort");
+      if (modelField) modelField.value = settings.model || "gpt-5.4";
+      if (reasoningField) reasoningField.value = settings.reasoning_effort || "medium";
+    }).catch(() => {});
+
+    $("#llm-model-form")?.addEventListener("change", async (event) => {
       const form = event.currentTarget;
       try {
-        await api("/api/subjects", { method: "POST", body: JSON.stringify(formData(form)) });
-        form.reset();
-        toast("Subject added.");
-        await loadBasics();
-        await loadSubjectsForSettings();
+        await api("/api/settings/llm", { method: "POST", body: JSON.stringify(formData(form)) });
+        toast("Runtime updated.");
       } catch (error) {
         toast(error.message);
       }
     });
 
+    const bindEnterToSend = (formSelector, fieldName) => {
+      namedField($(formSelector), fieldName)?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+        event.preventDefault();
+        const form = $(formSelector);
+        const submitButton = form?.querySelector("button[type='submit']");
+        if (form && typeof form.requestSubmit === "function") {
+          form.requestSubmit(submitButton || undefined);
+          return;
+        }
+        submitButton?.click();
+      });
+    };
+    bindEnterToSend("#ai-plan-form", "instruction");
+    bindEnterToSend("#ai-chat-form", "message");
+
+    $("#assistant-mode-control")?.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-mode]");
+      if (!button) return;
+      setAssistantMode(button.dataset.mode);
+      if (button.dataset.mode === "chat") {
+        try {
+          await loadAiChatSessions();
+        } catch (error) {
+          toast(error.message);
+        }
+      }
+    });
+
+    $("#ai-plan-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const instructionField = namedField(form, "instruction");
+      const submitButton = event.submitter;
+      const instruction = String(instructionField?.value || "").trim();
+      if (!instruction) {
+        toast("Enter a planning instruction.");
+        return;
+      }
+      const conversation = aiPlanConversationPayload();
+      if (instructionField) instructionField.value = "";
+      pushAiPlanUserMessage(instruction);
+      pushAiPlanAssistantPending();
+      if (submitButton) submitButton.disabled = true;
+      const root = $("#ai-draft-result");
+      const threadRoot = $("#ai-plan-thread");
+      if (threadRoot) threadRoot.scrollTop = threadRoot.scrollHeight;
+      root.classList.remove("empty-state");
+      root.innerHTML = '<div class="plan-empty">Planner is drafting tasks and calendar blocks...</div>';
+      try {
+        const draft = await api("/api/ai/plan", {
+          method: "POST",
+          body: JSON.stringify({
+            start: namedField(form, "start")?.value || null,
+            end: namedField(form, "end")?.value || null,
+            instruction,
+            conversation,
+          }),
+        });
+        pushAiPlanAssistantDraft(draft);
+        renderAiPlanDraftPreview();
+        toast("Planner draft updated.");
+      } catch (error) {
+        const pendingEntry = [...state.aiPlanConversation].reverse().find((item) => item.role === "assistant" && item.loading);
+        if (pendingEntry) {
+          pendingEntry.loading = false;
+          pendingEntry.displayText = error.message;
+          pendingEntry.content = error.message;
+          pendingEntry.narrative = "";
+          pendingEntry.typed = true;
+        }
+        renderAiPlanThread();
+        root.textContent = error.message;
+        root.classList.add("empty-state");
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+
+    $("#ai-plan-clear")?.addEventListener("click", () => {
+      clearAiPlanThread();
+      toast("Planner thread cleared.");
+    });
+
+    $("#ai-plan-thread")?.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-draft-id]");
+      if (!card) return;
+      const draftId = Number(card.dataset.draftId);
+      const entry = state.aiPlanConversation.find((item) => item.draft && Number(item.draft.id) === draftId);
+      if (!entry?.draft) return;
+      state.latestPlanDraft = entry.draft;
+      state.selectedPlanDraftId = draftId;
+      renderAiPlanThread();
+      renderAiPlanDraftPreview();
+    });
+
+    $("#ai-draft-result")?.addEventListener("click", async (event) => {
+      try {
+        const applyTaskButton = event.target.closest(".plan-apply-task");
+        if (applyTaskButton) {
+          await applyDraftTaskItem(Number(applyTaskButton.dataset.draftId), Number(applyTaskButton.dataset.index));
+          return;
+        }
+        const dropTaskButton = event.target.closest(".plan-drop-task");
+        if (dropTaskButton) {
+          setDraftItemDecision(Number(dropTaskButton.dataset.draftId), "task", Number(dropTaskButton.dataset.index), "dropped");
+          renderAiPlanDraftPreview();
+          syncAiDraftStatusBadge();
+          toast("Task dropped.");
+          return;
+        }
+        const applyEventButton = event.target.closest(".plan-apply-event");
+        if (applyEventButton) {
+          await applyDraftEventItem(Number(applyEventButton.dataset.draftId), Number(applyEventButton.dataset.index));
+          return;
+        }
+        const dropEventButton = event.target.closest(".plan-drop-event");
+        if (dropEventButton) {
+          setDraftItemDecision(Number(dropEventButton.dataset.draftId), "event", Number(dropEventButton.dataset.index), "dropped");
+          renderAiPlanDraftPreview();
+          syncAiDraftStatusBadge();
+          toast("Calendar block dropped.");
+        }
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#ai-chat-new")?.addEventListener("click", () => {
+      setAssistantMode("chat");
+      resetAiChatThread();
+      toast("New chat started.");
+    });
+
+    $("#ai-chat-delete")?.addEventListener("click", async () => {
+      if (!state.aiChatConversationId) return;
+      if (!window.confirm("Delete this saved chat?")) return;
+      try {
+        await api(`/api/ai/chat/sessions/${state.aiChatConversationId}`, { method: "DELETE" });
+        resetAiChatThread();
+        await loadAiChatSessions();
+        toast("Chat deleted.");
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#ai-chat-session-list")?.addEventListener("click", async (event) => {
+      const row = event.target.closest("[data-conversation-id]");
+      if (!row) return;
+      try {
+        setAssistantMode("chat");
+        await loadAiChatConversation(Number(row.dataset.conversationId));
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#ai-chat-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const messageField = namedField(form, "message");
+      const submitButton = event.submitter;
+      const message = String(messageField?.value || "").trim();
+      if (!message) {
+        toast("Enter a message.");
+        return;
+      }
+      if (messageField) messageField.value = "";
+      setAssistantMode("chat");
+      pushAiChatUserMessage(message);
+      pushAiChatAssistantPending();
+      if (submitButton) submitButton.disabled = true;
+      try {
+        const response = await api("/api/ai/chat/send", {
+          method: "POST",
+          body: JSON.stringify({
+            conversation_id: state.aiChatConversationId,
+            message,
+          }),
+        });
+        state.aiChatSessions = Array.isArray(response.sessions) ? response.sessions : state.aiChatSessions;
+        hydrateAiChatConversation(response.conversation);
+        const latestAssistant = [...state.aiChatThread].reverse().find((entry) => entry.role === "assistant");
+        if (latestAssistant) {
+          latestAssistant.content = response.assistant_message || latestAssistant.content;
+          latestAssistant.displayText = "";
+          latestAssistant.loading = false;
+          latestAssistant.typed = false;
+        }
+        renderAiChatSessions();
+        renderAiChatThread();
+        animateLatestChatAssistantMessage();
+      } catch (error) {
+        const pendingEntry = [...state.aiChatThread].reverse().find((item) => item.role === "assistant" && item.loading);
+        if (pendingEntry) {
+          pendingEntry.loading = false;
+          pendingEntry.content = error.message;
+          pendingEntry.displayText = error.message;
+          pendingEntry.typed = true;
+        }
+        renderAiChatThread();
+        toast(error.message);
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+
+    setAssistantMode("planning");
+    renderAiPlanThread();
+    renderAiPlanDraftPreview();
+    renderAiChatThread();
+    loadAiChatSessions().catch((error) => toast(error.message));
+  }
+
+  function bindSettings() {
     api("/api/settings/llm").then((settings) => {
-      const form = $("#llm-form");
+      const form = $("#llm-connection-form");
       if (!form) return;
       const baseField = namedField(form, "base_url");
       const keyField = namedField(form, "api_key");
-      const modelField = namedField(form, "model");
       if (baseField) baseField.value = settings.base_url || "";
       if (keyField) keyField.value = settings.api_key || "";
-      if (modelField) modelField.value = settings.model || "";
     }).catch(() => {});
 
-    $("#llm-form")?.addEventListener("submit", async (event) => {
+    $("#llm-connection-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       try {
         await api("/api/settings/llm", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
-        toast("GPT settings saved.");
+        toast("Connection saved.");
       } catch (error) {
         toast(error.message);
       }
@@ -1583,34 +3176,6 @@
         await api("/api/backup/import", { method: "POST", body: payload });
         toast("Backup imported.");
         await loadBasics();
-        await loadSubjectsForSettings();
-      } catch (error) {
-        toast(error.message);
-      }
-    });
-
-    $("#ai-plan-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const root = $("#ai-draft-result");
-      root.textContent = "Asking GPT...";
-      try {
-        const draft = await api("/api/ai/plan", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
-        renderJsonResult(root, draft.payload, draft.id);
-      } catch (error) {
-        root.textContent = error.message;
-        root.classList.add("empty-state");
-      }
-    });
-
-    $("#ai-draft-result")?.addEventListener("click", async (event) => {
-      const button = event.target.closest(".apply-draft");
-      if (!button) return;
-      try {
-        const result = await api(`/api/ai/drafts/${button.dataset.id}/apply`, { method: "POST" });
-        toast(`Applied: ${result.created_tasks} tasks, ${result.created_events} events.`);
-        await loadBasics();
-        if (document.body.dataset.page === "calendar") await loadEvents();
-        if (document.body.dataset.page === "tasks") await loadTasks();
       } catch (error) {
         toast(error.message);
       }
@@ -1639,15 +3204,12 @@
         $("#clear-data-modal")?.close();
         toast(`All data cleared. Backup: ${result.pre_clear_backup}`);
         await loadBasics();
-        await loadSubjectsForSettings();
         if ($("#task-list")) await loadTasks();
         if ($("#event-list")) await loadEvents();
       } catch (error) {
         toast(error.message);
       }
     });
-
-    loadSubjectsForSettings().catch((error) => toast(error.message));
   }
 
   function bindGlobalDialogs() {
@@ -1666,6 +3228,7 @@
 
   async function init() {
     initSceneCanvas();
+    initDashboardParallax();
     bindTiltPanels();
 
     try {
@@ -1680,6 +3243,7 @@
     if (page === "tasks") bindTasks();
     if (page === "calendar") bindCalendar();
     if (page === "analytics") bindAnalytics();
+    if (page === "assistant") bindAssistant();
     if (page === "settings") bindSettings();
     bindGlobalDialogs();
 

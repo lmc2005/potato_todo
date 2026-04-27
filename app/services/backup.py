@@ -9,13 +9,13 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from app.database import ROOT_DIR
-from app.models import AiDraft, ScheduleEvent, Setting, StudySession, Subject, Task, TimerState
+from app.models import AiConversation, AiDraft, AiMessage, ScheduleEvent, Setting, StudySession, Subject, Task, TimerState
 
 
 BACKUP_DIR = ROOT_DIR / "backups"
 BACKUP_DIR.mkdir(exist_ok=True)
 
-MODELS = [Subject, Task, ScheduleEvent, StudySession, TimerState, AiDraft, Setting]
+MODELS = [Subject, Task, ScheduleEvent, StudySession, TimerState, AiDraft, AiConversation, AiMessage, Setting]
 
 
 def _serialize_value(value: Any) -> Any:

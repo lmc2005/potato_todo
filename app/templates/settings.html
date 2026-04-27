@@ -4,8 +4,8 @@
   <article class="glass-panel settings-command-panel" data-tilt>
     <div class="settings-command-copy">
       <p class="eyebrow">Workspace Control</p>
-      <h1>Configure subjects, GPT access, backup, and local operating rules.</h1>
-      <p class="lead-text">Everything here stays on the local machine unless you explicitly send study data to the configured model service for planning or analysis.</p>
+      <h1>Manage timing defaults, backups, and local data safety.</h1>
+      <p class="lead-text">This page is for device-level controls only. GPT planning and model configuration now live in GPT Assistant.</p>
     </div>
     <div class="settings-command-meta">
       <div>
@@ -17,35 +17,21 @@
         <strong>JSON export/import</strong>
       </div>
       <div>
-        <span>News endpoint</span>
-        <strong>Reserved</strong>
+        <span>Assistant</span>
+        <strong>Separate workspace</strong>
       </div>
     </div>
   </article>
 </section>
 
 <section class="settings-grid">
-  <article class="glass-panel panel settings-panel-wide" data-tilt>
-    <div class="panel-heading"><div><p class="eyebrow">Subjects</p><h2>Subject Library</h2></div></div>
-    <form id="subject-form" class="form-grid">
-      <label>Name <input name="name" required maxlength="120" placeholder="Mathematics"></label>
-      <label>Color <input type="color" name="color" value="#5E8CFF"></label>
-      <label>Daily goal <input type="number" name="daily_goal_minutes" min="0" value="60"></label>
-      <label>Weekly goal <input type="number" name="weekly_goal_minutes" min="0" value="420"></label>
-      <label>Monthly goal <input type="number" name="monthly_goal_minutes" min="0" value="1800"></label>
-      <button class="primary-button" type="submit">Add Subject</button>
-    </form>
-    <div id="subject-list" class="stack-list"></div>
-  </article>
-
   <article class="glass-panel panel" data-tilt>
     <div class="panel-heading"><div><p class="eyebrow">GPT</p><h2>Model Service</h2></div></div>
-    <p class="notice">Selected study details may be sent to your configured model service for planning and analysis.</p>
-    <form id="llm-form" class="form-grid">
+    <p class="notice">Connection details stay here. Model choice and reasoning depth are configured in GPT Assistant.</p>
+    <form id="llm-connection-form" class="form-grid">
       <label class="wide">Base URL <input name="base_url" placeholder="https://api.openai.com/v1"></label>
       <label class="wide">API Key <input name="api_key" type="password" placeholder="Stored locally"></label>
-      <label>Model <input name="model" placeholder="gpt-4o-mini"></label>
-      <button class="primary-button" type="submit">Save GPT Settings</button>
+      <button class="primary-button" type="submit">Save Connection</button>
     </form>
   </article>
 
@@ -60,7 +46,7 @@
     </form>
   </article>
 
-  <article class="glass-panel panel" data-tilt>
+  <article class="glass-panel panel settings-panel-wide" data-tilt>
     <div class="panel-heading"><div><p class="eyebrow">Backup</p><h2>Export and Import</h2></div></div>
     <div class="button-row">
       <a class="primary-button" href="/api/backup/export">Export JSON</a>
@@ -69,17 +55,6 @@
       <label class="wide">Import JSON <input type="file" name="file" accept="application/json" required></label>
       <button class="danger-button" type="submit">Import and Replace</button>
     </form>
-  </article>
-
-  <article class="glass-panel panel settings-panel-wide" data-tilt>
-    <div class="panel-heading"><div><p class="eyebrow">AI Planner</p><h2>Draft Schedule and Tasks</h2></div></div>
-    <form id="ai-plan-form" class="form-grid">
-      <label>Start <input type="date" name="start" value="{{ today }}"></label>
-      <label>End <input type="date" name="end" value="{{ today }}"></label>
-      <label class="wide">Instruction <textarea name="instruction" rows="3" placeholder="Plan my next study blocks based on overdue tasks and weak subjects."></textarea></label>
-      <button class="primary-button" type="submit">Generate Plan Draft</button>
-    </form>
-    <div id="ai-draft-result" class="ai-result empty-state">No draft generated yet.</div>
   </article>
 
   <article class="glass-panel panel danger-zone" data-tilt>

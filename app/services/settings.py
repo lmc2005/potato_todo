@@ -8,7 +8,8 @@ from app.models import Setting
 DEFAULT_SETTINGS = {
     "llm_base_url": "",
     "llm_api_key": "",
-    "llm_model": "gpt-4o-mini",
+    "llm_model": "gpt-5.4",
+    "llm_reasoning_effort": "medium",
     "pomodoro_focus_minutes": "25",
     "pomodoro_short_break_minutes": "5",
     "pomodoro_long_break_minutes": "15",

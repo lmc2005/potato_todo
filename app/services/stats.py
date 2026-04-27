@@ -5,7 +5,7 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import StudySession, Subject, Task
+from app.models import StudySession, Subject, Task, now_local
 
 
 def day_bounds(start: date, end: date) -> tuple[datetime, datetime]:
@@ -21,7 +21,23 @@ def _date_range(start: date, end: date) -> list[date]:
     return days
 
 
+def sync_overdue_tasks(db: Session) -> int:
+    now = now_local()
+    overdue_tasks = (
+        db.query(Task)
+        .filter(Task.status.in_(("todo", "in_progress")), Task.due_at.isnot(None), Task.due_at < now)
+        .all()
+    )
+    for task in overdue_tasks:
+        task.status = "undone"
+        task.completed_at = None
+    if overdue_tasks:
+        db.commit()
+    return len(overdue_tasks)
+
+
 def compute_stats(db: Session, start: date, end: date) -> dict:
+    sync_overdue_tasks(db)
     start_dt, end_dt = day_bounds(start, end)
     sessions = (
         db.query(StudySession)
@@ -75,6 +91,7 @@ def compute_stats(db: Session, start: date, end: date) -> dict:
         {"date": day, "seconds": seconds, "minutes": round(seconds / 60, 1)}
         for day, seconds in by_day.items()
     ]
+    task_completion_trend = _task_completion_trend(db, start, end)
 
     active_days = [datetime.fromisoformat(item["date"]).date() for item in daily_trend if item["seconds"] > 0]
     streak_days = _current_streak(active_days, end)
@@ -87,6 +104,7 @@ def compute_stats(db: Session, start: date, end: date) -> dict:
         "session_count": len(sessions),
         "subject_breakdown": subject_breakdown,
         "daily_trend": daily_trend,
+        "task_completion_trend": task_completion_trend,
         "task_ranking": task_ranking,
         "streak_days": streak_days,
         "goal_completion": goal_completion,
@@ -141,3 +159,42 @@ def _goal_completion(subjects: dict[int, Subject], by_subject: dict[int, int], s
             }
         )
     return sorted(rows, key=lambda row: row["completion"])
+
+
+def _task_completion_trend(db: Session, start: date, end: date) -> list[dict]:
+    start_dt, end_dt = day_bounds(start, end)
+    tasks = (
+        db.query(Task)
+        .filter(Task.due_at.isnot(None), Task.due_at >= start_dt, Task.due_at <= end_dt)
+        .all()
+    )
+    by_day: dict[str, dict[str, int | float | None]] = {
+        day.isoformat(): {
+            "date": day.isoformat(),
+            "total": 0,
+            "completed": 0,
+            "on_time": 0,
+            "completion_rate": None,
+            "on_time_rate": None,
+        }
+        for day in _date_range(start, end)
+    }
+    for task in tasks:
+        if not task.due_at:
+            continue
+        key = task.due_at.date().isoformat()
+        if key not in by_day:
+            continue
+        row = by_day[key]
+        row["total"] = int(row["total"] or 0) + 1
+        if task.status == "done" and task.completed_at:
+            row["completed"] = int(row["completed"] or 0) + 1
+            if task.completed_at <= task.due_at:
+                row["on_time"] = int(row["on_time"] or 0) + 1
+
+    for row in by_day.values():
+        total = int(row["total"] or 0)
+        if total:
+            row["completion_rate"] = round(int(row["completed"] or 0) / total, 4)
+            row["on_time_rate"] = round(int(row["on_time"] or 0) / total, 4)
+    return list(by_day.values())

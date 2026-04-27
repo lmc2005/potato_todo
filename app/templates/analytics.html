@@ -9,8 +9,8 @@
     </div>
 
     <form class="range-controls analytics-range-inline" id="analytics-range">
-      <label>Start <input type="date" name="start" value="{{ today }}"></label>
-      <label>End <input type="date" name="end" value="{{ today }}"></label>
+      <label>Start <input type="date" name="start" value="{{ analytics_default_start }}"></label>
+      <label>End <input type="date" name="end" value="{{ analytics_default_end }}"></label>
       <button class="secondary-button" type="submit">Analyze</button>
     </form>
 
@@ -24,11 +24,6 @@
         <span>Streak</span>
         <strong id="analytics-streak">0 days</strong>
         <small>Ending at selected range</small>
-      </article>
-      <article class="metric glass-inset">
-        <span>Active subjects</span>
-        <strong id="analytics-active-subjects">0</strong>
-        <small id="analytics-active-subjects-detail">Subjects with tracked focus time</small>
       </article>
     </div>
   </article>
@@ -65,6 +60,12 @@
       </div>
       <span class="chart-note">Weekday and hour heatmap</span>
     </div>
+    <div class="rhythm-legend" aria-label="Study rhythm color meaning">
+      <span><i class="rhythm-empty"></i>No focus</span>
+      <span><i class="rhythm-light"></i>Light focus</span>
+      <span><i class="rhythm-steady"></i>Steady focus</span>
+      <span><i class="rhythm-peak"></i>Peak focus</span>
+    </div>
     <canvas id="rhythm-chart" width="900" height="320" class="chart-canvas"></canvas>
   </article>
 
@@ -97,6 +98,17 @@
       <span class="chart-note">X-axis: date / Y-axis: total focus time</span>
     </div>
     <canvas id="trend-chart" width="900" height="320" class="chart-canvas"></canvas>
+  </article>
+
+  <article class="glass-panel panel chart-panel chart-wide analytics-task-rate-panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Tasks</p>
+        <h2>Completion Rate Trend</h2>
+      </div>
+      <span class="chart-note">Daily completion rate vs on-time completion rate</span>
+    </div>
+    <canvas id="task-rate-chart" width="900" height="320" class="chart-canvas"></canvas>
   </article>
 
   <article class="glass-panel panel analytics-ai-panel" data-tilt>

@@ -1,4 +1,6 @@
 .venv/
+.potato_todo_env/
+.playwright/
 __pycache__/
 .pytest_cache/
 *.pyc

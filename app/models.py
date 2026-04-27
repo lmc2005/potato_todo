@@ -119,6 +119,34 @@ class AiDraft(Base):
     applied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class AiConversation(Base):
+    __tablename__ = "ai_conversations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mode: Mapped[str] = mapped_column(String(32), default="chat", nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_local, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_local, onupdate=now_local, nullable=False)
+
+    messages: Mapped[list["AiMessage"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="AiMessage.created_at.asc()",
+    )
+
+
+class AiMessage(Base):
+    __tablename__ = "ai_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("ai_conversations.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_local, nullable=False)
+
+    conversation: Mapped[AiConversation] = relationship(back_populates="messages")
+
+
 class Setting(Base):
     __tablename__ = "settings"
 

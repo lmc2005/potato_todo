@@ -27,7 +27,7 @@ class SubjectPatch(BaseModel):
 class TaskIn(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     subject_id: int | None = None
-    status: Literal["todo", "in_progress", "done"] = "todo"
+    status: Literal["todo", "in_progress", "done", "undone"] = "todo"
     priority: Literal["low", "medium", "high"] = "medium"
     due_at: datetime | None = None
     estimated_minutes: int | None = Field(default=None, ge=0)
@@ -37,11 +37,12 @@ class TaskIn(BaseModel):
 class TaskPatch(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=240)
     subject_id: int | None = None
-    status: Literal["todo", "in_progress", "done"] | None = None
+    status: Literal["todo", "in_progress", "done", "undone"] | None = None
     priority: Literal["low", "medium", "high"] | None = None
     due_at: datetime | None = None
     estimated_minutes: int | None = Field(default=None, ge=0)
     notes: str | None = None
+    completed_at: datetime | None = None
 
 
 class ScheduleEventIn(BaseModel):
@@ -98,6 +99,7 @@ class LlmSettingsIn(BaseModel):
     base_url: str | None = None
     api_key: str | None = None
     model: str | None = None
+    reasoning_effort: str | None = None
 
 
 class PomodoroSettingsIn(BaseModel):
@@ -115,6 +117,12 @@ class AiRequestIn(BaseModel):
     start: date | None = None
     end: date | None = None
     instruction: str | None = None
+    conversation: list[dict[str, str]] | None = None
+
+
+class AiChatSendIn(BaseModel):
+    conversation_id: int | None = None
+    message: str = Field(min_length=1, max_length=20000)
 
 
 class AiDraftOut(BaseModel):

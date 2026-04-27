@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
+from time import perf_counter
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
@@ -14,8 +16,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import ROOT_DIR, SessionLocal, get_db, init_db
-from app.models import ScheduleEvent, Setting, StudySession, Subject, Task, now_local
+from app.models import AiConversation, ScheduleEvent, Setting, StudySession, Subject, Task, now_local
 from app.schemas import (
+    AiChatSendIn,
     AiRequestIn,
     ClearDataIn,
     LlmSettingsIn,
@@ -36,13 +39,26 @@ from app.services.ai import (
     apply_plan_draft,
     build_snapshot,
     call_llm,
+    call_llm_text,
     create_draft,
+    delete_chat_conversation,
     draft_to_payload,
+    get_daily_quote,
+    get_chat_conversation_payload,
+    list_chat_conversations,
+    normalize_plan_payload,
+    planning_requests_schedule,
+    save_chat_exchange,
 )
 from app.services.backup import clear_all_data, export_payload, import_payload
 from app.services.settings import get_all_settings, get_int_setting, set_setting
-from app.services.stats import compute_stats
+from app.services.stats import compute_stats, sync_overdue_tasks
 from app.services.timer import current_timer, pause_timer, resume_timer, skip_pomodoro, start_pomodoro, start_timer, stop_timer
+
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+
+logger = logging.getLogger("potato_todo.http")
 
 
 def seed_defaults() -> None:
@@ -60,13 +76,141 @@ app.mount("/static", StaticFiles(directory=ROOT_DIR / "app" / "static"), name="s
 templates = Jinja2Templates(directory=ROOT_DIR / "app" / "templates")
 
 
+def _mask_sensitive_data(value: Any) -> Any:
+    if isinstance(value, dict):
+        masked: dict[str, Any] = {}
+        for key, item in value.items():
+            if key.lower() in {"api_key", "authorization", "token", "password"}:
+                masked[key] = "********"
+            else:
+                masked[key] = _mask_sensitive_data(item)
+        return masked
+    if isinstance(value, list):
+        return [_mask_sensitive_data(item) for item in value]
+    return value
+
+
+def _format_log_payload(body: bytes, content_type: str | None) -> str:
+    if not body:
+        return "<empty>"
+    text = body.decode("utf-8", errors="replace")
+    if content_type and "application/json" in content_type.lower():
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return text
+        return json.dumps(_mask_sensitive_data(parsed), ensure_ascii=False, indent=2)
+    return text
+
+
+def _format_query_params(request: Request) -> str:
+    if not request.query_params:
+        return "<empty>"
+    grouped: dict[str, Any] = {}
+    for key, value in request.query_params.multi_items():
+        if key in grouped:
+            existing = grouped[key]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                grouped[key] = [existing, value]
+        else:
+            grouped[key] = value
+    return json.dumps(grouped, ensure_ascii=False, indent=2)
+
+
+def _make_receive(body: bytes):
+    sent = False
+
+    async def receive() -> dict[str, Any]:
+        nonlocal sent
+        if sent:
+            return {"type": "http.request", "body": b"", "more_body": False}
+        sent = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return receive
+
+
+async def _read_response_body(response: Response) -> bytes:
+    if hasattr(response, "body") and response.body is not None:
+        return response.body
+    if not hasattr(response, "body_iterator") or response.body_iterator is None:
+        return b""
+    chunks: list[bytes] = []
+    async for chunk in response.body_iterator:
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _should_log_response_body(path: str, content_type: str) -> bool:
+    lowered = content_type.lower()
+    return path.startswith("/api") or lowered.startswith("application/json") or lowered.startswith("text/plain")
+
+
+@app.middleware("http")
+async def log_http_traffic(request: Request, call_next):
+    raw_body = await request.body()
+    request = Request(request.scope, _make_receive(raw_body))
+    content_type = request.headers.get("content-type", "")
+    started = perf_counter()
+    logger.info(
+        "HTTP request %s %s\nquery=%s\nbody=%s",
+        request.method,
+        request.url.path,
+        _format_query_params(request),
+        _format_log_payload(raw_body, content_type),
+    )
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = (perf_counter() - started) * 1000
+        logger.exception("HTTP request failed %s %s in %.2fms", request.method, request.url.path, duration_ms)
+        raise
+
+    response_body = await _read_response_body(response)
+    duration_ms = (perf_counter() - started) * 1000
+    response_content_type = response.headers.get("content-type", "")
+    if _should_log_response_body(request.url.path, response_content_type):
+        logger.info(
+            "HTTP response %s %s status=%s duration_ms=%.2f\ncontent_type=%s\nbody=%s",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            response_content_type or "<unknown>",
+            _format_log_payload(response_body, response_content_type),
+        )
+    else:
+        logger.info(
+            "HTTP response %s %s status=%s duration_ms=%.2f content_type=%s body=<omitted>",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            response_content_type or "<unknown>",
+        )
+
+    return Response(
+        content=response_body,
+        status_code=response.status_code,
+        headers=dict(response.headers),
+        media_type=response.media_type,
+        background=response.background,
+    )
+
+
 def page(request: Request, name: str, template_name: str, db: Session) -> HTMLResponse:
+    today = now_local().date()
+    analytics_start = today - timedelta(days=20)
     return templates.TemplateResponse(
         template_name,
         {
             "request": request,
             "active_page": name,
-            "today": now_local().date().isoformat(),
+            "today": today.isoformat(),
+            "analytics_default_start": analytics_start.isoformat(),
+            "analytics_default_end": today.isoformat(),
             "settings": get_all_settings(db),
         },
     )
@@ -100,6 +244,11 @@ def analytics_page(request: Request, db: Session = Depends(get_db)):
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, db: Session = Depends(get_db)):
     return page(request, "settings", "settings.html", db)
+
+
+@app.get("/assistant", response_class=HTMLResponse)
+def assistant_page(request: Request, db: Session = Depends(get_db)):
+    return page(request, "assistant", "assistant.html", db)
 
 
 def serialize_subject(subject: Subject) -> dict[str, Any]:
@@ -183,9 +332,13 @@ def update_subject(subject_id: int, data: SubjectPatch, db: Session = Depends(ge
 
 @app.get("/api/tasks")
 def list_tasks(status: str | None = None, db: Session = Depends(get_db)):
+    sync_overdue_tasks(db)
     query = db.query(Task).order_by(Task.status.asc(), Task.due_at.asc().nullslast(), Task.created_at.desc())
     if status:
-        query = query.filter(Task.status == status)
+        if status == "pending":
+            query = query.filter(Task.status != "done")
+        else:
+            query = query.filter(Task.status == status)
     return [serialize_task(task) for task in query.all()]
 
 
@@ -193,9 +346,10 @@ def list_tasks(status: str | None = None, db: Session = Depends(get_db)):
 def create_task(data: TaskIn, db: Session = Depends(get_db)):
     task = Task(**data.model_dump())
     if task.status == "done":
-        task.completed_at = now_local()
+        task.completed_at = task.completed_at or now_local()
     db.add(task)
     db.commit()
+    sync_overdue_tasks(db)
     db.refresh(task)
     return serialize_task(task)
 
@@ -213,6 +367,7 @@ def update_task(task_id: int, data: TaskPatch, db: Session = Depends(get_db)):
     if updates.get("status") and updates.get("status") != "done":
         task.completed_at = None
     db.commit()
+    sync_overdue_tasks(db)
     db.refresh(task)
     return serialize_task(task)
 
@@ -323,6 +478,7 @@ def get_llm_settings(db: Session = Depends(get_db)):
         "base_url": settings.get("llm_base_url"),
         "api_key": settings.get("llm_api_key"),
         "model": settings.get("llm_model"),
+        "reasoning_effort": settings.get("llm_reasoning_effort"),
     }
 
 
@@ -334,6 +490,8 @@ def save_llm_settings(data: LlmSettingsIn, db: Session = Depends(get_db)):
         set_setting(db, "llm_api_key", data.api_key)
     if data.model is not None:
         set_setting(db, "llm_model", data.model)
+    if data.reasoning_effort is not None:
+        set_setting(db, "llm_reasoning_effort", data.reasoning_effort)
     return get_llm_settings(db)
 
 
@@ -369,9 +527,17 @@ def _ai_dates(data: AiRequestIn) -> tuple[date, date]:
 async def ai_plan(data: AiRequestIn, db: Session = Depends(get_db)):
     start, end = _ai_dates(data)
     snapshot = build_snapshot(db, start, end)
-    snapshot["instruction"] = data.instruction or "Create a practical study plan from the provided tasks, schedule, goals, and study history."
-    payload, raw = await call_llm(db, PLAN_SYSTEM_PROMPT, snapshot)
-    draft = create_draft(db, "plan", snapshot, payload, raw)
+    instruction = data.instruction or "Create a practical study plan from the provided tasks, schedule, goals, and study history."
+    schedule_requested = planning_requests_schedule(instruction, data.conversation)
+    llm_snapshot = {
+        **snapshot,
+        "instruction": instruction,
+        "conversation": data.conversation or [],
+        "planning_mode": "task_and_schedule" if schedule_requested else "task_only",
+    }
+    payload, raw = await call_llm(db, PLAN_SYSTEM_PROMPT, llm_snapshot, instruction=instruction, conversation=data.conversation)
+    payload = normalize_plan_payload(payload, schedule_requested=schedule_requested)
+    draft = create_draft(db, "plan", llm_snapshot, payload, raw)
     return draft_to_payload(draft)
 
 
@@ -379,10 +545,69 @@ async def ai_plan(data: AiRequestIn, db: Session = Depends(get_db)):
 async def ai_analyze(data: AiRequestIn, db: Session = Depends(get_db)):
     start, end = _ai_dates(data)
     snapshot = build_snapshot(db, start, end)
-    snapshot["instruction"] = data.instruction or "Analyze study habits and provide concise, actionable advice."
-    payload, raw = await call_llm(db, ANALYZE_SYSTEM_PROMPT, snapshot)
-    draft = create_draft(db, "analysis", snapshot, payload, raw)
+    instruction = data.instruction or "Analyze study habits and provide concise, actionable advice."
+    llm_snapshot = {**snapshot, "instruction": instruction}
+    payload, raw = await call_llm(db, ANALYZE_SYSTEM_PROMPT, snapshot, instruction=instruction)
+    draft = create_draft(db, "analysis", llm_snapshot, payload, raw)
     return draft_to_payload(draft)
+
+
+@app.get("/api/ai/chat/sessions")
+def get_chat_sessions(db: Session = Depends(get_db)):
+    return list_chat_conversations(db)
+
+
+@app.get("/api/ai/chat/sessions/{conversation_id}")
+def get_chat_session(conversation_id: int, db: Session = Depends(get_db)):
+    return get_chat_conversation_payload(db, conversation_id)
+
+
+@app.delete("/api/ai/chat/sessions/{conversation_id}")
+def remove_chat_session(conversation_id: int, db: Session = Depends(get_db)):
+    delete_chat_conversation(db, conversation_id)
+    return {"deleted": True}
+
+
+@app.post("/api/ai/chat/send")
+async def ai_chat_send(data: AiChatSendIn, db: Session = Depends(get_db)):
+    message = data.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required.")
+
+    conversation_turns: list[dict[str, str]] = []
+    if data.conversation_id is not None:
+        conversation = db.get(AiConversation, data.conversation_id)
+        if conversation is None or conversation.mode != "chat":
+            raise HTTPException(status_code=404, detail="Chat conversation not found.")
+        conversation_turns = [
+            {"role": item.role, "content": item.content}
+            for item in conversation.messages
+            if item.role in {"user", "assistant"} and item.content
+        ]
+
+    assistant_message = await call_llm_text(db, None, message, conversation=conversation_turns)
+    conversation_payload = save_chat_exchange(db, message, assistant_message, conversation_id=data.conversation_id)
+    return {
+        "conversation": conversation_payload,
+        "assistant_message": assistant_message,
+        "sessions": list_chat_conversations(db),
+    }
+
+
+@app.get("/api/ai/daily-quote")
+async def ai_daily_quote(db: Session = Depends(get_db)):
+    try:
+        return await get_daily_quote(db, now_local().date())
+    except HTTPException as exc:
+        if exc.status_code != 400:
+            raise
+    return {
+        "quote": "Stay hungry, stay foolish.",
+        "author": "Steve Jobs",
+        "source": "Stanford Commencement Address",
+        "cached": False,
+        "fallback": True,
+    }
 
 
 @app.get("/api/ai/drafts")

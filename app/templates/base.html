@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Study Planner</title>
+  <title>POTATO-TODO</title>
+  <link rel="icon" type="image/svg+xml" href="/static/potato.svg">
   <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body data-page="{{ active_page }}">
   {% if active_page == "dashboard" %}
-    {% set shell_title = "Operations Overview" %}
-    {% set shell_subtitle = "Daily focus, task pressure, and schedule context in one local control surface." %}
+    {% set shell_title = "Today at a Glance" %}
+    {% set shell_subtitle = "Live local time, today's focus momentum, and the next pieces of work that matter." %}
   {% elif active_page == "focus" %}
     {% set shell_title = "Focus Command" %}
     {% set shell_subtitle = "Run count-up, countdown, and Pomodoro sessions with persistent local timing." %}
@@ -22,12 +23,27 @@
   {% elif active_page == "analytics" %}
     {% set shell_title = "Performance Analytics" %}
     {% set shell_subtitle = "Review study distribution, consistency, subject pressure, and AI-assisted feedback." %}
+  {% elif active_page == "assistant" %}
+    {% set shell_title = "GPT Assistant" %}
+    {% set shell_subtitle = "Plan study blocks conversationally, review structured drafts, and apply them to tasks and calendar." %}
   {% else %}
     {% set shell_title = "Local System Settings" %}
-    {% set shell_subtitle = "Control subjects, GPT access, backups, Pomodoro defaults, and local data operations." %}
+    {% set shell_subtitle = "Control Pomodoro defaults, backups, and local data operations." %}
   {% endif %}
 
   <div class="scene-backdrop" aria-hidden="true">
+    <div class="scene-aurora aurora-a"></div>
+    <div class="scene-aurora aurora-b"></div>
+    <div class="scene-aurora aurora-c"></div>
+    <div class="scene-aurora aurora-d"></div>
+    {% if active_page == "dashboard" %}
+      <div class="dashboard-parallax-backdrop">
+        <div class="dashboard-parallax-layer layer-far"></div>
+        <div class="dashboard-parallax-layer layer-mid"></div>
+        <div class="dashboard-parallax-layer layer-near"></div>
+        <div class="dashboard-parallax-glow"></div>
+      </div>
+    {% endif %}
     <canvas id="scene-canvas" class="scene-canvas"></canvas>
     <div class="scene-grid"></div>
     <div class="scene-vignette"></div>
@@ -39,15 +55,14 @@
         <a class="brand" href="/" aria-label="Study Planner home">
           <span class="brand-mark"></span>
           <span class="brand-copy">
-            <strong>Study Planner</strong>
-            <small>Local study operating system</small>
+            <strong>POTATO-TODO</strong>
+            <small>Local study workspace</small>
           </span>
         </a>
 
-        <div class="rail-intel">
+        <div class="rail-mini-note">
           <span class="intel-label">Private workspace</span>
-          <strong>Study operations</strong>
-          <small>Tasks, schedule, focus, and analytics in one place.</small>
+          <small>Focus, tasks, schedule, analytics, and GPT in one local flow.</small>
         </div>
 
         <nav class="rail-nav" aria-label="Primary navigation">
@@ -86,11 +101,18 @@
               <small>Insights</small>
             </span>
           </a>
-          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">
+          <a class="{{ 'active' if active_page == 'assistant' else '' }}" href="/assistant">
             <span class="nav-index">05</span>
             <span class="nav-copy">
+              <strong>GPT Assistant</strong>
+              <small>Planner</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">
+            <span class="nav-index">06</span>
+            <span class="nav-copy">
               <strong>Settings</strong>
-              <small>Control</small>
+              <small>System</small>
             </span>
           </a>
         </nav>
@@ -100,33 +122,34 @@
             <span class="status-dot"></span>
             <span>Local-first active</span>
           </div>
-          <div class="rail-stack">
-            <div>
-              <span class="status-label">Data</span>
-              <strong>On this device</strong>
-            </div>
-            <div>
-              <span class="status-label">Mode</span>
-              <strong>Independent</strong>
-            </div>
-          </div>
         </div>
       </div>
     </aside>
 
     <div class="workspace">
-      <header class="workspace-topbar glass-panel">
-        <div class="topbar-copy">
-          <span class="topbar-kicker">{{ active_page|title }}</span>
-          <strong class="topbar-title">{{ shell_title }}</strong>
-          <p class="topbar-subtitle">{{ shell_subtitle }}</p>
-        </div>
-        <div class="topbar-meta">
-          <span class="topbar-pill">Private mode</span>
-          <span class="topbar-pill">Local clock</span>
-          <span class="topbar-pill">{{ today }}</span>
-        </div>
-      </header>
+      {% if active_page == "dashboard" %}
+        <header class="workspace-topbar glass-panel dashboard-topbar-quote">
+          <span class="dashboard-topbar-kicker">Daily Quote</span>
+          <blockquote id="dashboard-top-quote-text" class="dashboard-topbar-quote-text">Loading today's quote...</blockquote>
+          <div class="dashboard-topbar-credit">
+            <strong id="dashboard-top-quote-author">-- POTATO-TODO</strong>
+            <span id="dashboard-top-quote-source">Local reminder</span>
+          </div>
+        </header>
+      {% else %}
+        <header class="workspace-topbar glass-panel">
+          <div class="topbar-copy">
+            <span class="topbar-kicker">{{ active_page|title }}</span>
+            <strong class="topbar-title">{{ shell_title }}</strong>
+            <p class="topbar-subtitle">{{ shell_subtitle }}</p>
+          </div>
+          <div class="topbar-meta">
+            <span class="topbar-pill">Private mode</span>
+            <span class="topbar-pill">Local clock</span>
+            <span class="topbar-pill">{{ today }}</span>
+          </div>
+        </header>
+      {% endif %}
 
       <main class="main-content">
         {% block content %}{% endblock %}
@@ -160,6 +183,7 @@
   </dialog>
 
   <dialog id="task-complete-modal" class="glass-dialog task-complete-dialog">
+    <canvas id="task-complete-fireworks" class="task-complete-fireworks" aria-hidden="true"></canvas>
     <div class="reminder-badge">Completed</div>
     <h3 id="task-complete-title">Task completed</h3>
     <p id="task-complete-message">Completed tasks +1</p>
@@ -168,6 +192,20 @@
     </div>
     <form method="dialog">
       <button class="primary-button">Done</button>
+    </form>
+  </dialog>
+
+  <dialog id="task-completion-time-modal" class="glass-dialog task-time-dialog">
+    <div class="reminder-badge">Completion time</div>
+    <h3>Mark overdue task as done</h3>
+    <p id="task-completion-time-message">Enter the actual completion time for this task.</p>
+    <form id="task-completion-time-form" class="task-time-form" method="dialog">
+      <input type="hidden" name="task_id">
+      <label>Completed at <input type="datetime-local" name="completed_at" required></label>
+      <div class="button-row">
+        <button class="secondary-button" value="cancel" formmethod="dialog">Cancel</button>
+        <button class="primary-button" value="confirm">Save Completion</button>
+      </div>
     </form>
   </dialog>
 
