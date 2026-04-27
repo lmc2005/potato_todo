@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Study Planner</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body data-page="{{ active_page }}">
+  {% if active_page == "dashboard" %}
+    {% set shell_title = "Operations Overview" %}
+    {% set shell_subtitle = "Daily focus, task pressure, and schedule context in one local control surface." %}
+  {% elif active_page == "focus" %}
+    {% set shell_title = "Focus Command" %}
+    {% set shell_subtitle = "Run count-up, countdown, and Pomodoro sessions with persistent local timing." %}
+  {% elif active_page == "tasks" %}
+    {% set shell_title = "Task Pipeline" %}
+    {% set shell_subtitle = "Convert study goals into accountable task flow with clear priority and due-time handling." %}
+  {% elif active_page == "calendar" %}
+    {% set shell_title = "Schedule Control" %}
+    {% set shell_subtitle = "Operate day, week, and month planning with reminder coverage before each study block." %}
+  {% elif active_page == "analytics" %}
+    {% set shell_title = "Performance Analytics" %}
+    {% set shell_subtitle = "Review study distribution, consistency, subject pressure, and AI-assisted feedback." %}
+  {% else %}
+    {% set shell_title = "Local System Settings" %}
+    {% set shell_subtitle = "Control subjects, GPT access, backups, Pomodoro defaults, and local data operations." %}
+  {% endif %}
+
+  <div class="scene-backdrop" aria-hidden="true">
+    <canvas id="scene-canvas" class="scene-canvas"></canvas>
+    <div class="scene-grid"></div>
+    <div class="scene-vignette"></div>
+  </div>
+
+  <div class="app-shell">
+    <aside class="app-rail">
+      <div class="rail-frame glass-rail">
+        <a class="brand" href="/" aria-label="Study Planner home">
+          <span class="brand-mark"></span>
+          <span class="brand-copy">
+            <strong>Study Planner</strong>
+            <small>Local study operating system</small>
+          </span>
+        </a>
+
+        <div class="rail-intel">
+          <span class="intel-label">Private workspace</span>
+          <strong>Study operations</strong>
+          <small>Tasks, schedule, focus, and analytics in one place.</small>
+        </div>
+
+        <nav class="rail-nav" aria-label="Primary navigation">
+          <a class="{{ 'active' if active_page == 'dashboard' else '' }}" href="/">
+            <span class="nav-index">00</span>
+            <span class="nav-copy">
+              <strong>Dashboard</strong>
+              <small>Overview</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'focus' else '' }}" href="/focus">
+            <span class="nav-index">01</span>
+            <span class="nav-copy">
+              <strong>Focus</strong>
+              <small>Timer</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'tasks' else '' }}" href="/tasks">
+            <span class="nav-index">02</span>
+            <span class="nav-copy">
+              <strong>Tasks</strong>
+              <small>Todo</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'calendar' else '' }}" href="/calendar">
+            <span class="nav-index">03</span>
+            <span class="nav-copy">
+              <strong>Calendar</strong>
+              <small>Schedule</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'analytics' else '' }}" href="/analytics">
+            <span class="nav-index">04</span>
+            <span class="nav-copy">
+              <strong>Analytics</strong>
+              <small>Insights</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">
+            <span class="nav-index">05</span>
+            <span class="nav-copy">
+              <strong>Settings</strong>
+              <small>Control</small>
+            </span>
+          </a>
+        </nav>
+
+        <div class="rail-footer">
+          <div class="rail-status-chip">
+            <span class="status-dot"></span>
+            <span>Local-first active</span>
+          </div>
+          <div class="rail-stack">
+            <div>
+              <span class="status-label">Data</span>
+              <strong>On this device</strong>
+            </div>
+            <div>
+              <span class="status-label">Mode</span>
+              <strong>Independent</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="workspace-topbar glass-panel">
+        <div class="topbar-copy">
+          <span class="topbar-kicker">{{ active_page|title }}</span>
+          <strong class="topbar-title">{{ shell_title }}</strong>
+          <p class="topbar-subtitle">{{ shell_subtitle }}</p>
+        </div>
+        <div class="topbar-meta">
+          <span class="topbar-pill">Private mode</span>
+          <span class="topbar-pill">Local clock</span>
+          <span class="topbar-pill">{{ today }}</span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <canvas id="celebration-canvas" class="celebration-canvas" aria-hidden="true"></canvas>
+
+  <dialog id="completion-modal" class="glass-dialog">
+    <h3 id="completion-title">Focus complete</h3>
+    <p id="completion-message">Your study session has been saved.</p>
+    <form method="dialog">
+      <button class="primary-button">Done</button>
+    </form>
+  </dialog>
+
+  <dialog id="schedule-reminder-modal" class="glass-dialog schedule-reminder-dialog">
+    <div class="reminder-badge">Upcoming</div>
+    <h3 id="schedule-reminder-title">Study block starts soon</h3>
+    <p id="schedule-reminder-message">Your scheduled study block starts in five minutes.</p>
+    <div class="reminder-meta">
+      <span id="schedule-reminder-time">--</span>
+      <span id="schedule-reminder-subject">No subject</span>
+    </div>
+    <form method="dialog" class="button-row">
+      <a class="secondary-button" href="/calendar" id="schedule-reminder-open-calendar">Open Calendar</a>
+      <button class="primary-button">Acknowledge</button>
+    </form>
+  </dialog>
+
+  <dialog id="task-complete-modal" class="glass-dialog task-complete-dialog">
+    <div class="reminder-badge">Completed</div>
+    <h3 id="task-complete-title">Task completed</h3>
+    <p id="task-complete-message">Completed tasks +1</p>
+    <div class="reminder-meta">
+      <span id="task-complete-name">--</span>
+    </div>
+    <form method="dialog">
+      <button class="primary-button">Done</button>
+    </form>
+  </dialog>
+
+  <script>
+    window.APP_BOOT = {
+      page: "{{ active_page }}",
+      today: "{{ today }}"
+    };
+  </script>
+  <script src="/static/js/app.js" defer></script>
+</body>
+</html>

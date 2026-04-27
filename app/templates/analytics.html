@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="analytics-stage">
+  <article class="glass-panel analytics-command-panel" data-tilt>
+    <div class="analytics-command-copy">
+      <p class="eyebrow">Performance Analytics</p>
+      <h1>Read study quality from multiple angles, not just total time.</h1>
+      <p class="lead-text">Inspect subject distribution, weekly goal completion, task concentration, study rhythm, and long-range focus trend from one analytical workspace.</p>
+    </div>
+
+    <form class="range-controls analytics-range-inline" id="analytics-range">
+      <label>Start <input type="date" name="start" value="{{ today }}"></label>
+      <label>End <input type="date" name="end" value="{{ today }}"></label>
+      <button class="secondary-button" type="submit">Analyze</button>
+    </form>
+
+    <div class="analytics-kpi-row">
+      <article class="metric glass-inset">
+        <span>Total focus</span>
+        <strong id="analytics-total">0h 00m</strong>
+        <small id="analytics-sessions">0 sessions</small>
+      </article>
+      <article class="metric glass-inset">
+        <span>Streak</span>
+        <strong id="analytics-streak">0 days</strong>
+        <small>Ending at selected range</small>
+      </article>
+      <article class="metric glass-inset">
+        <span>Active subjects</span>
+        <strong id="analytics-active-subjects">0</strong>
+        <small id="analytics-active-subjects-detail">Subjects with tracked focus time</small>
+      </article>
+    </div>
+  </article>
+</section>
+
+<section class="analytics-grid">
+  <article class="glass-panel panel chart-panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Today</p>
+        <h2>Focus Time by Subject</h2>
+      </div>
+      <span class="chart-note">Current day breakdown</span>
+    </div>
+    <canvas id="subject-chart" width="520" height="320" class="chart-canvas"></canvas>
+  </article>
+
+  <article class="glass-panel panel chart-panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">This Week</p>
+        <h2>Subject Goal Completion</h2>
+      </div>
+      <span class="chart-note">Progress against subject goals</span>
+    </div>
+    <canvas id="goal-chart" width="520" height="320" class="chart-canvas"></canvas>
+  </article>
+
+  <article class="glass-panel panel chart-panel chart-wide" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Rhythm</p>
+        <h2>Study Rhythm</h2>
+      </div>
+      <span class="chart-note">Weekday and hour heatmap</span>
+    </div>
+    <canvas id="rhythm-chart" width="900" height="320" class="chart-canvas"></canvas>
+  </article>
+
+  <article class="glass-panel panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Subjects</p>
+        <h2>Subject Details</h2>
+      </div>
+    </div>
+    <div id="analytics-subjects" class="stack-list empty-state">No subject data.</div>
+  </article>
+
+  <article class="glass-panel panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Tasks</p>
+        <h2>Task Ranking</h2>
+      </div>
+    </div>
+    <div id="analytics-tasks" class="stack-list empty-state">No task timing data.</div>
+  </article>
+
+  <article class="glass-panel panel chart-panel chart-wide analytics-trend-panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Trend</p>
+        <h2>Daily Trend</h2>
+      </div>
+      <span class="chart-note">X-axis: date / Y-axis: total focus time</span>
+    </div>
+    <canvas id="trend-chart" width="900" height="320" class="chart-canvas"></canvas>
+  </article>
+
+  <article class="glass-panel panel analytics-ai-panel" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">AI</p>
+        <h2>AI Analysis</h2>
+      </div>
+    </div>
+    <form id="ai-analyze-form" class="inline-form">
+      <input name="instruction" placeholder="Optional focus, e.g. exam prep consistency">
+      <button class="primary-button" type="submit">Ask GPT</button>
+    </form>
+    <div id="ai-analysis-result" class="ai-result empty-state">No AI analysis yet.</div>
+  </article>
+</section>
+{% endblock %}

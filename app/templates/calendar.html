@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="calendar-command">
+  <article class="glass-panel calendar-command-panel" data-tilt>
+    <div class="calendar-command-copy">
+      <p class="eyebrow">Schedule Control</p>
+      <h1>Use Calendar for when you will study.</h1>
+      <p class="lead-text">Plan time blocks, edit them in place, and jump from month view into a specific day when you need detail. Reminders trigger five minutes before start time.</p>
+    </div>
+    <div class="calendar-stats">
+      <div>
+        <span>Events</span>
+        <strong id="calendar-event-count">0</strong>
+      </div>
+      <div>
+        <span>Planned time</span>
+        <strong id="calendar-planned-time">0m 00s</strong>
+      </div>
+      <div>
+        <span>Next block</span>
+        <strong id="calendar-next-event">None</strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="calendar-operating-grid">
+  <article class="glass-panel calendar-control-tower" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Mode</p>
+        <h2>View and create</h2>
+      </div>
+    </div>
+    <div class="segmented-control" id="calendar-mode-control">
+      <button class="active" type="button" data-mode="day" id="calendar-day">Day</button>
+      <button type="button" data-mode="week" id="calendar-week">Week</button>
+      <button type="button" data-mode="month" id="calendar-month">Month</button>
+    </div>
+    <form class="range-controls" id="calendar-range">
+      <label>Start <input type="date" name="start" value="{{ today }}"></label>
+      <label>End <input type="date" name="end" value="{{ today }}"></label>
+      <button class="secondary-button" type="submit">Load</button>
+    </form>
+
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Composer</p>
+        <h2>Add Event</h2>
+      </div>
+    </div>
+    <form id="event-form" class="form-grid">
+      <label class="wide">Title <input name="title" required maxlength="240" placeholder="Physics review"></label>
+      <label>Subject <select name="subject_id"><option value="">No subject</option></select></label>
+      <label>Task <select name="task_id"><option value="">No linked task</option></select></label>
+      <label>Start <input type="datetime-local" name="start_at" required></label>
+      <label>End <input type="datetime-local" name="end_at" required></label>
+      <label class="wide">Notes <textarea name="notes" rows="3" placeholder="Goal, material, or context"></textarea></label>
+      <button class="primary-button" type="submit">Create Event</button>
+    </form>
+  </article>
+
+  <article class="glass-panel calendar-viewport" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Board</p>
+        <h2 id="calendar-board-title">Schedule</h2>
+      </div>
+      <span class="muted" id="calendar-board-subtitle">Day view</span>
+    </div>
+    <div id="event-list" class="timeline empty-state">No events in this range.</div>
+  </article>
+</section>
+{% endblock %}

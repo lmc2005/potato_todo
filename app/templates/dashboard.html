@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-stage dashboard-stage-refined">
+  <article class="glass-panel hero-panel dashboard-hero dashboard-hero-refined" data-tilt>
+    <div class="hero-panel-copy">
+      <p class="eyebrow">Study Operations</p>
+      <h1>One surface for today's focus, tasks, and schedule.</h1>
+      <p class="lead-text">Keep the overview tight: total focus in the selected range, current momentum, open work, and the next items that need attention.</p>
+      <div class="hero-actions">
+        <a class="primary-button" href="/focus">Start Focus</a>
+        <a class="secondary-button" href="/tasks">Open Tasks</a>
+        <a class="secondary-button" href="/calendar">Open Calendar</a>
+      </div>
+    </div>
+
+    <div class="hero-visual-stack">
+      <div class="hero-meter-shell">
+        <div class="hero-meter" id="dash-hero-meter" style="--meter-color: #2563eb; --meter-progress: 0deg;">
+          <span>Selected range</span>
+          <strong id="dash-hero-total">0h 00m</strong>
+          <small id="dash-hero-subtitle">No sessions yet</small>
+          <div class="hero-meter-ring hero-meter-ring-a"></div>
+          <div class="hero-meter-ring hero-meter-ring-b"></div>
+        </div>
+      </div>
+      <div class="spark-card dashboard-spark-card">
+        <div class="spark-card-header">
+          <span class="mini-kicker">Daily signal</span>
+          <span class="mini-meta">Local trend</span>
+        </div>
+        <canvas id="dash-sparkline" class="sparkline-canvas" width="420" height="130"></canvas>
+      </div>
+    </div>
+
+    <form class="range-controls hero-range dashboard-range-strip" id="dashboard-range">
+      <label>Start <input type="date" name="start" value="{{ today }}"></label>
+      <label>End <input type="date" name="end" value="{{ today }}"></label>
+      <button class="secondary-button" type="submit">Refresh</button>
+    </form>
+
+    <div class="dashboard-kpi-strip">
+      <article class="metric glass-inset dashboard-kpi-card">
+        <span>Total focus</span>
+        <strong id="dash-total">0h 00m</strong>
+        <small id="dash-session-count">0 sessions</small>
+      </article>
+      <article class="metric glass-inset dashboard-kpi-card">
+        <span>Current streak</span>
+        <strong id="dash-streak">0 days</strong>
+        <small>Active study days in a row</small>
+      </article>
+      <article class="metric glass-inset dashboard-kpi-card">
+        <span>Open tasks</span>
+        <strong id="dash-open-tasks">0</strong>
+        <small>Todo items waiting</small>
+      </article>
+    </div>
+  </article>
+</section>
+
+<section class="dashboard-workbench dashboard-workbench-refined">
+  <article class="glass-panel panel dashboard-workbench-panel" data-tilt>
+    <div class="dashboard-board-grid">
+      <section class="dashboard-board-section">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Tasks</p>
+            <h2>Today's Tasks</h2>
+          </div>
+          <a class="text-link" href="/tasks">Manage</a>
+        </div>
+        <div id="dash-tasks" class="stack-list empty-state">No tasks yet.</div>
+      </section>
+
+      <section class="dashboard-board-section">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Schedule</p>
+            <h2>Today's Calendar</h2>
+          </div>
+          <a class="text-link" href="/calendar">Plan</a>
+        </div>
+        <div id="dash-events" class="stack-list empty-state">No events today.</div>
+      </section>
+    </div>
+  </article>
+</section>
+{% endblock %}

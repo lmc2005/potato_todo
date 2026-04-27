@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="settings-stage">
+  <article class="glass-panel settings-command-panel" data-tilt>
+    <div class="settings-command-copy">
+      <p class="eyebrow">Workspace Control</p>
+      <h1>Configure subjects, GPT access, backup, and local operating rules.</h1>
+      <p class="lead-text">Everything here stays on the local machine unless you explicitly send study data to the configured model service for planning or analysis.</p>
+    </div>
+    <div class="settings-command-meta">
+      <div>
+        <span>Storage</span>
+        <strong>Local database</strong>
+      </div>
+      <div>
+        <span>Backups</span>
+        <strong>JSON export/import</strong>
+      </div>
+      <div>
+        <span>News endpoint</span>
+        <strong>Reserved</strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="settings-grid">
+  <article class="glass-panel panel settings-panel-wide" data-tilt>
+    <div class="panel-heading"><div><p class="eyebrow">Subjects</p><h2>Subject Library</h2></div></div>
+    <form id="subject-form" class="form-grid">
+      <label>Name <input name="name" required maxlength="120" placeholder="Mathematics"></label>
+      <label>Color <input type="color" name="color" value="#5E8CFF"></label>
+      <label>Daily goal <input type="number" name="daily_goal_minutes" min="0" value="60"></label>
+      <label>Weekly goal <input type="number" name="weekly_goal_minutes" min="0" value="420"></label>
+      <label>Monthly goal <input type="number" name="monthly_goal_minutes" min="0" value="1800"></label>
+      <button class="primary-button" type="submit">Add Subject</button>
+    </form>
+    <div id="subject-list" class="stack-list"></div>
+  </article>
+
+  <article class="glass-panel panel" data-tilt>
+    <div class="panel-heading"><div><p class="eyebrow">GPT</p><h2>Model Service</h2></div></div>
+    <p class="notice">Selected study details may be sent to your configured model service for planning and analysis.</p>
+    <form id="llm-form" class="form-grid">
+      <label class="wide">Base URL <input name="base_url" placeholder="https://api.openai.com/v1"></label>
+      <label class="wide">API Key <input name="api_key" type="password" placeholder="Stored locally"></label>
+      <label>Model <input name="model" placeholder="gpt-4o-mini"></label>
+      <button class="primary-button" type="submit">Save GPT Settings</button>
+    </form>
+  </article>
+
+  <article class="glass-panel panel" data-tilt>
+    <div class="panel-heading"><div><p class="eyebrow">Pomodoro</p><h2>Default Cycle</h2></div></div>
+    <form id="pomodoro-settings-form" class="form-grid">
+      <label>Focus <input type="number" name="focus_minutes" min="1" value="25"></label>
+      <label>Short break <input type="number" name="short_break_minutes" min="1" value="5"></label>
+      <label>Long break <input type="number" name="long_break_minutes" min="1" value="15"></label>
+      <label>Rounds <input type="number" name="total_rounds" min="1" max="12" value="4"></label>
+      <button class="primary-button" type="submit">Save Pomodoro</button>
+    </form>
+  </article>
+
+  <article class="glass-panel panel" data-tilt>
+    <div class="panel-heading"><div><p class="eyebrow">Backup</p><h2>Export and Import</h2></div></div>
+    <div class="button-row">
+      <a class="primary-button" href="/api/backup/export">Export JSON</a>
+    </div>
+    <form id="backup-import-form" class="form-grid">
+      <label class="wide">Import JSON <input type="file" name="file" accept="application/json" required></label>
+      <button class="danger-button" type="submit">Import and Replace</button>
+    </form>
+  </article>
+
+  <article class="glass-panel panel settings-panel-wide" data-tilt>
+    <div class="panel-heading"><div><p class="eyebrow">AI Planner</p><h2>Draft Schedule and Tasks</h2></div></div>
+    <form id="ai-plan-form" class="form-grid">
+      <label>Start <input type="date" name="start" value="{{ today }}"></label>
+      <label>End <input type="date" name="end" value="{{ today }}"></label>
+      <label class="wide">Instruction <textarea name="instruction" rows="3" placeholder="Plan my next study blocks based on overdue tasks and weak subjects."></textarea></label>
+      <button class="primary-button" type="submit">Generate Plan Draft</button>
+    </form>
+    <div id="ai-draft-result" class="ai-result empty-state">No draft generated yet.</div>
+  </article>
+
+  <article class="glass-panel panel danger-zone" data-tilt>
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Danger Zone</p>
+        <h2>Clear Local Data</h2>
+      </div>
+      <span class="chart-note">Backup created first</span>
+    </div>
+    <p class="notice danger-notice">Clearing all data removes subjects, tasks, schedule events, study sessions, AI drafts, and settings from the local database. A pre-clear backup is created first.</p>
+    <button class="danger-button" id="clear-data-open" type="button">Clear All Data</button>
+  </article>
+</section>
+
+<dialog id="clear-data-modal" class="glass-dialog">
+  <form method="dialog" id="clear-data-form">
+    <h3>Clear all local data?</h3>
+    <p>This action removes all records from the local database after creating a pre-clear backup. This cannot be undone from the app UI.</p>
+    <label>Type CLEAR to confirm <input name="confirmation" autocomplete="off" placeholder="CLEAR"></label>
+    <div class="button-row">
+      <button class="secondary-button" value="cancel">Cancel</button>
+      <button class="danger-button" value="clear">Clear All Data</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}

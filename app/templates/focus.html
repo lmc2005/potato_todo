@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="focus-command">
+  <article class="glass-panel focus-card" id="focus-card" data-state="idle" data-tilt>
+    <div class="focus-ambient" aria-hidden="true"></div>
+    <div class="session-strip">
+      <span id="focus-subject-pill">No subject</span>
+      <span id="focus-phase-pill">Idle</span>
+      <span id="focus-progress-pill">0%</span>
+    </div>
+
+    <div class="focus-stage-shell">
+      <div class="timer-stage" id="timer-stage" style="--progress: 0deg; --session-color: #2563eb;">
+        <div class="focus-orbit orbit-a" aria-hidden="true"></div>
+        <div class="focus-orbit orbit-b" aria-hidden="true"></div>
+        <div class="focus-orbit orbit-c" aria-hidden="true"></div>
+        <div class="progress-ring" aria-hidden="true"></div>
+        <div class="progress-sheen" aria-hidden="true"></div>
+        <div class="timer-display">
+          <span id="focus-mode">Ready</span>
+          <strong id="focus-clock">00:00:00</strong>
+          <small id="focus-meta">Choose a subject and start.</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="focus-stats">
+      <div>
+        <span>Elapsed</span>
+        <strong id="focus-elapsed">0m 00s</strong>
+      </div>
+      <div>
+        <span>Remaining</span>
+        <strong id="focus-remaining">Open</strong>
+      </div>
+      <div>
+        <span>Round</span>
+        <strong id="focus-round">--</strong>
+      </div>
+    </div>
+
+    <div class="session-flow" id="session-flow" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+
+    <div class="control-bar">
+      <button class="secondary-button" id="pause-resume" disabled>Pause</button>
+      <button class="danger-button" id="stop-timer" disabled>Stop</button>
+      <button class="secondary-button" id="skip-pomodoro" disabled>Skip</button>
+    </div>
+  </article>
+
+  <div class="focus-side">
+    <article class="glass-panel focus-form-panel" data-tilt>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Free Timer</p>
+          <h2>Count up or countdown</h2>
+        </div>
+        <button class="secondary-button" id="request-notification">Enable Alerts</button>
+      </div>
+      <form id="free-timer-form" class="form-grid">
+        <label>Subject <select name="subject_id" required></select></label>
+        <label>Task <select name="task_id"><option value="">No linked task</option></select></label>
+        <label>Mode
+          <select name="mode">
+            <option value="count_up">Count up</option>
+            <option value="count_down">Countdown</option>
+          </select>
+        </label>
+        <label id="countdown-duration-field">Minutes <input type="number" name="duration_minutes" min="1" value="45"></label>
+        <button class="primary-button" type="submit">Start Focus</button>
+      </form>
+    </article>
+
+    <article class="glass-panel focus-form-panel" data-tilt>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Pomodoro</p>
+          <h2>Structured focus cycles</h2>
+        </div>
+      </div>
+      <form id="pomodoro-form" class="form-grid">
+        <label>Subject <select name="subject_id" required></select></label>
+        <label>Task <select name="task_id"><option value="">No linked task</option></select></label>
+        <label>Focus <input type="number" name="focus_minutes" min="1" value="25"></label>
+        <label>Short break <input type="number" name="short_break_minutes" min="1" value="5"></label>
+        <label>Long break <input type="number" name="long_break_minutes" min="1" value="15"></label>
+        <label>Rounds <input type="number" name="total_rounds" min="1" max="12" value="4"></label>
+        <button class="primary-button" type="submit">Start Pomodoro</button>
+      </form>
+    </article>
+  </div>
+</section>
+
+<dialog id="count-up-review-modal" class="glass-dialog focus-review-dialog">
+  <form method="dialog" id="count-up-review-form">
+    <h3>Review long focus session</h3>
+    <p id="count-up-review-message">This count-up session is longer than 90 minutes. Adjust the saved focus time if part of it was not active study.</p>
+    <label>Saved focus minutes <input type="number" name="adjusted_focus_minutes" min="1" max="1440"></label>
+    <div class="button-row">
+      <button class="secondary-button" value="keep">Keep Current</button>
+      <button class="primary-button" value="adjust">Save Adjusted</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
