@@ -2211,6 +2211,32 @@ h1 {
   font-weight: 760;
 }
 
+.focus-subject-total {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.30)),
+    linear-gradient(135deg, color-mix(in srgb, var(--subject-color) 16%, transparent), transparent 74%);
+  border: 1px solid color-mix(in srgb, var(--subject-color) 18%, rgba(255, 255, 255, 0.24));
+}
+
+.focus-subject-total span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.focus-subject-total strong {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 780;
+  color: var(--text);
+}
+
 .focus-subject-dot {
   width: 14px;
   height: 14px;
@@ -2228,14 +2254,18 @@ h1 {
 .focus-subject-goals span {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 0 12px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.52);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34)),
+    linear-gradient(135deg, color-mix(in srgb, var(--subject-color) 10%, transparent), transparent 72%);
+  border: 1px solid color-mix(in srgb, var(--subject-color) 16%, rgba(255, 255, 255, 0.22));
   color: var(--text-soft);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 760;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--subject-color) 10%, transparent);
 }
 
 .focus-subject-form-actions,

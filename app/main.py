@@ -12,6 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -251,7 +252,7 @@ def assistant_page(request: Request, db: Session = Depends(get_db)):
     return page(request, "assistant", "assistant.html", db)
 
 
-def serialize_subject(subject: Subject) -> dict[str, Any]:
+def serialize_subject(subject: Subject, total_focus_seconds: int = 0) -> dict[str, Any]:
     return {
         "id": subject.id,
         "name": subject.name,
@@ -259,6 +260,7 @@ def serialize_subject(subject: Subject) -> dict[str, Any]:
         "daily_goal_minutes": subject.daily_goal_minutes,
         "weekly_goal_minutes": subject.weekly_goal_minutes,
         "monthly_goal_minutes": subject.monthly_goal_minutes,
+        "total_focus_seconds": int(total_focus_seconds or 0),
         "archived": subject.archived,
     }
 
@@ -298,7 +300,13 @@ def list_subjects(include_archived: bool = False, db: Session = Depends(get_db))
     query = db.query(Subject).order_by(Subject.archived.asc(), Subject.name.asc())
     if not include_archived:
         query = query.filter(Subject.archived.is_(False))
-    return [serialize_subject(subject) for subject in query.all()]
+    subjects = query.all()
+    focus_totals = dict(
+        db.query(StudySession.subject_id, func.coalesce(func.sum(StudySession.focus_seconds), 0))
+        .group_by(StudySession.subject_id)
+        .all()
+    )
+    return [serialize_subject(subject, total_focus_seconds=focus_totals.get(subject.id, 0)) for subject in subjects]
 
 
 @app.post("/api/subjects")
@@ -311,7 +319,7 @@ def create_subject(data: SubjectIn, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=400, detail="Subject name already exists.") from exc
     db.refresh(subject)
-    return serialize_subject(subject)
+    return serialize_subject(subject, total_focus_seconds=0)
 
 
 @app.patch("/api/subjects/{subject_id}")
@@ -327,7 +335,8 @@ def update_subject(subject_id: int, data: SubjectPatch, db: Session = Depends(ge
         db.rollback()
         raise HTTPException(status_code=400, detail="Subject name already exists.") from exc
     db.refresh(subject)
-    return serialize_subject(subject)
+    total_focus_seconds = db.query(func.coalesce(func.sum(StudySession.focus_seconds), 0)).filter(StudySession.subject_id == subject.id).scalar()
+    return serialize_subject(subject, total_focus_seconds=total_focus_seconds or 0)
 
 
 @app.delete("/api/subjects/{subject_id}")

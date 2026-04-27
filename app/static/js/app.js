@@ -92,6 +92,11 @@
     return `${m}m ${String(s).padStart(2, "0")}s`;
   }
 
+  function formatGoalHours(minutes, cadence) {
+    const value = Math.max(Number(minutes || 0), 0) / 60;
+    return `${value.toFixed(1)} hour/${cadence}`;
+  }
+
   function formatClock(seconds) {
     seconds = Math.max(Number(seconds || 0), 0);
     const h = Math.floor(seconds / 3600);
@@ -1990,11 +1995,11 @@
       ctx.stroke();
       ctx.fillText(`${Math.round(tick * 100)}%`, 18, y + 4);
     });
-    ctx.fillStyle = "#8ea2ff";
+    ctx.fillStyle = "#ff2d7a";
     ctx.fillRect(left, 12, 18, 5);
     ctx.fillStyle = "rgba(23,32,42,0.78)";
     ctx.fillText("Completion rate", left + 26, 18);
-    ctx.fillStyle = "#20c997";
+    ctx.fillStyle = "#00d5ff";
     ctx.fillRect(left + 168, 12, 18, 5);
     ctx.fillStyle = "rgba(23,32,42,0.78)";
     ctx.fillText("On-time rate", left + 194, 18);
@@ -2040,8 +2045,8 @@
       });
     };
 
-    drawSeries("completion_rate", "#8ea2ff");
-    drawSeries("on_time_rate", "#20c997");
+    drawSeries("completion_rate", "#ff2d7a");
+    drawSeries("on_time_rate", "#00d5ff");
 
     points.forEach((point, index) => {
       const shouldLabel = rows.length <= 10 || index === 0 || index === rows.length - 1 || index % Math.ceil(rows.length / 6) === 0;
@@ -2933,10 +2938,14 @@
         <strong>${escapeHtml(subject.name)}</strong>
         <span class="focus-subject-dot"></span>
       </div>
+      <div class="focus-subject-total">
+        <span>Total focus</span>
+        <strong>${escapeHtml(formatDuration(subject.total_focus_seconds || 0))}</strong>
+      </div>
       <div class="focus-subject-goals">
-        <span>${subject.daily_goal_minutes}m day</span>
-        <span>${subject.weekly_goal_minutes}m week</span>
-        <span>${subject.monthly_goal_minutes}m month</span>
+        <span>${escapeHtml(formatGoalHours(subject.daily_goal_minutes, "day"))}</span>
+        <span>${escapeHtml(formatGoalHours(subject.weekly_goal_minutes, "week"))}</span>
+        <span>${escapeHtml(formatGoalHours(subject.monthly_goal_minutes, "month"))}</span>
       </div>
       <div class="focus-subject-actions">
         <button class="secondary-button subject-edit" type="button" data-id="${subject.id}">Edit</button>

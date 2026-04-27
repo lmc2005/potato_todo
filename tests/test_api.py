@@ -184,6 +184,27 @@ def test_subject_delete_rejects_when_timer_is_active(client):
     assert "Stop the active timer" in response.json()["detail"]
 
 
+def test_subject_list_includes_total_focus_seconds(client):
+    subject = client.post("/api/subjects", json={"name": "Music", "color": "#8B5CF6"}).json()
+    with SessionLocal() as db:
+        db.add(
+            StudySession(
+                subject_id=subject["id"],
+                mode="count_up",
+                started_at=now_local() - timedelta(minutes=30),
+                ended_at=now_local(),
+                focus_seconds=30 * 60,
+                paused_seconds=0,
+                stop_reason="manual_stop",
+            )
+        )
+        db.commit()
+
+    listed = client.get("/api/subjects").json()
+    row = next(item for item in listed if item["id"] == subject["id"])
+    assert row["total_focus_seconds"] == 30 * 60
+
+
 def test_stats_include_task_completion_and_on_time_rates(client):
     today = now_local().date()
     due_at = datetime.combine(today, time(hour=12))
