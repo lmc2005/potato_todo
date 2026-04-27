@@ -1665,6 +1665,62 @@ h1 {
     linear-gradient(135deg, color-mix(in srgb, var(--accent-3) 9%, transparent), transparent 64%);
 }
 
+.tasks-list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  align-items: center;
+}
+
+.task-period-filter {
+  min-height: 44px;
+}
+
+.tasks-period-summary {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.tasks-period-caption {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+}
+
+.tasks-period-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(126, 144, 177, 0.14);
+  border-bottom: 1px solid rgba(126, 144, 177, 0.14);
+}
+
+.tasks-period-metric {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tasks-period-metric span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 720;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tasks-period-metric strong {
+  color: var(--text);
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1;
+  font-weight: 780;
+}
+
 .list-item strong,
 .timeline-item strong {
   font-size: 16px;
@@ -4340,6 +4396,15 @@ button:disabled {
   .assistant-thread-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .tasks-list-controls {
+    flex-direction: column;
+    justify-content: stretch;
+  }
+
+  .tasks-period-metrics {
+    grid-template-columns: 1fr;
   }
 
   .topbar-pill,

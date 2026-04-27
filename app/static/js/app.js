@@ -18,6 +18,7 @@
     aiChatTitle: "New Chat",
     aiChatThread: [],
     chatTypingToken: 0,
+    taskPeriod: "week",
     dashboardClockStarted: false,
     dashboardStats: null,
     focusStageStarted: false,
@@ -163,6 +164,78 @@
     const start = new Date(end);
     start.setDate(end.getDate() - (days - 1));
     return { start: localDateKey(start), end: localDateKey(end) };
+  }
+
+  function currentDayRange() {
+    return { start: window.APP_BOOT.today, end: window.APP_BOOT.today };
+  }
+
+  function currentMonthRange() {
+    const today = new Date(`${window.APP_BOOT.today}T00:00:00`);
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { start: localDateKey(start), end: localDateKey(end) };
+  }
+
+  function taskPeriodRange(mode = state.taskPeriod) {
+    if (mode === "day") return currentDayRange();
+    if (mode === "month") return currentMonthRange();
+    return currentWeekRange();
+  }
+
+  function taskPeriodLabel(mode = state.taskPeriod) {
+    if (mode === "day") return "Today";
+    if (mode === "month") return "This month";
+    return "This week";
+  }
+
+  function isoDateKey(value) {
+    if (!value) return "";
+    return String(value).slice(0, 10);
+  }
+
+  function isDateWithinRange(value, range) {
+    const key = isoDateKey(value);
+    if (!key) return false;
+    return key >= range.start && key <= range.end;
+  }
+
+  function taskPeriodAnchor(task) {
+    if (task.status === "done" && task.completed_at) return task.completed_at;
+    if (task.due_at) return task.due_at;
+    return task.created_at || null;
+  }
+
+  function taskInPeriod(task, range) {
+    return isDateWithinRange(taskPeriodAnchor(task), range);
+  }
+
+  function taskSummaryForPeriod(tasks, range) {
+    return {
+      done: tasks.filter((task) => task.status === "done" && isDateWithinRange(task.completed_at, range)).length,
+      unfinished: tasks.filter((task) => task.status !== "done" && taskInPeriod(task, range)).length,
+      lateDone: tasks.filter((task) => task.status === "done" && task.due_at && task.completed_at && new Date(task.completed_at) > new Date(task.due_at) && isDateWithinRange(task.completed_at, range)).length,
+    };
+  }
+
+  function updateTaskPeriodControls() {
+    const root = $("#task-period-filter");
+    if (!root) return;
+    $$("button[data-period]", root).forEach((button) => {
+      button.classList.toggle("active", button.dataset.period === state.taskPeriod);
+    });
+  }
+
+  function renderTaskPeriodSummary(tasks, range) {
+    const summary = taskSummaryForPeriod(tasks, range);
+    const caption = $("#task-period-caption");
+    const done = $("#task-period-done");
+    const open = $("#task-period-open");
+    const late = $("#task-period-late");
+    if (caption) caption.textContent = taskPeriodLabel();
+    if (done) done.textContent = String(summary.done);
+    if (open) open.textContent = String(summary.unfinished);
+    if (late) late.textContent = String(summary.lateDone);
   }
 
   function subjectById(id) {
@@ -1578,14 +1651,24 @@
 
   async function loadTasks() {
     const filter = $("#task-status-filter")?.value || "";
-    const tasks = await api(`/api/tasks${filter ? `?status=${encodeURIComponent(filter)}` : ""}`);
-    const orderedTasks = sortTasksForDisplay(tasks, filter);
-    state.tasks = orderedTasks;
+    const allTasks = await api("/api/tasks");
+    const range = taskPeriodRange();
+    const periodTasks = allTasks.filter((task) => taskInPeriod(task, range));
+    const filteredTasks = filter ? periodTasks.filter((task) => task.status === filter) : periodTasks;
+    const orderedTasks = sortTasksForDisplay(filteredTasks, filter);
+    state.tasks = allTasks;
     fillTaskSelects();
+    updateTaskPeriodControls();
+    renderTaskPeriodSummary(allTasks, range);
     const list = $("#task-list");
     if (!list) return;
     list.classList.toggle("empty-state", orderedTasks.length === 0);
-    list.innerHTML = orderedTasks.length ? orderedTasks.map((task) => renderTaskItem(task)).join("") : "No tasks yet.";
+    if (!orderedTasks.length) {
+      const statusLabel = filter ? `${filter.replace("_", " ")} ` : "";
+      list.innerHTML = `No ${statusLabel}tasks in ${taskPeriodLabel().toLowerCase()}.`;
+      return;
+    }
+    list.innerHTML = orderedTasks.map((task) => renderTaskItem(task)).join("");
   }
 
   function bindTasks() {
@@ -1602,6 +1685,12 @@
       }
     });
     $("#task-status-filter")?.addEventListener("change", () => loadTasks().catch((error) => toast(error.message)));
+    $("#task-period-filter")?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-period]");
+      if (!button || button.dataset.period === state.taskPeriod) return;
+      state.taskPeriod = button.dataset.period;
+      loadTasks().catch((error) => toast(error.message));
+    });
     $("#task-list")?.addEventListener("click", async (event) => {
       const target = event.target.closest("button");
       if (!target) return;

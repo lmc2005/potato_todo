@@ -60,13 +60,37 @@
         <p class="eyebrow">Queue</p>
         <h2>Task List</h2>
       </div>
-      <select id="task-status-filter" class="compact-select">
-        <option value="">All</option>
-        <option value="todo">Todo</option>
-        <option value="in_progress">In progress</option>
-        <option value="undone">Undone</option>
-        <option value="done">Done</option>
-      </select>
+      <div class="tasks-list-controls">
+        <div class="segmented-control task-period-filter" id="task-period-filter">
+          <button type="button" data-period="day">Day</button>
+          <button class="active" type="button" data-period="week">Week</button>
+          <button type="button" data-period="month">Month</button>
+        </div>
+        <select id="task-status-filter" class="compact-select">
+          <option value="">All</option>
+          <option value="todo">Todo</option>
+          <option value="in_progress">In progress</option>
+          <option value="undone">Undone</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+    </div>
+    <div class="tasks-period-summary">
+      <div class="tasks-period-caption" id="task-period-caption">This week</div>
+      <div class="tasks-period-metrics">
+        <div class="tasks-period-metric">
+          <span>Done</span>
+          <strong id="task-period-done">0</strong>
+        </div>
+        <div class="tasks-period-metric">
+          <span>Unfinished</span>
+          <strong id="task-period-open">0</strong>
+        </div>
+        <div class="tasks-period-metric">
+          <span>Late done</span>
+          <strong id="task-period-late">0</strong>
+        </div>
+      </div>
     </div>
     <div id="task-list" class="stack-list empty-state">No tasks yet.</div>
   </article>
