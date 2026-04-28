@@ -902,7 +902,12 @@
 
   function sortTasksForDisplay(tasks, filter = "") {
     const statusRank = { todo: 0, in_progress: 1, undone: 2, done: 3 };
+    const priorityRank = { high: 0, medium: 1, low: 2 };
+    const now = Date.now();
     const dueValue = (task) => task.due_at ? new Date(task.due_at).getTime() : Number.POSITIVE_INFINITY;
+    const dueDistance = (task) => task.due_at ? Math.abs(new Date(task.due_at).getTime() - now) : Number.POSITIVE_INFINITY;
+    const hasDue = (task) => Boolean(task.due_at);
+    const priorityValue = (task) => priorityRank[task.priority] ?? 99;
     const createdValue = (task) => task.created_at ? new Date(task.created_at).getTime() : 0;
     return tasks.slice().sort((left, right) => {
       if (!filter) {
@@ -910,8 +915,17 @@
         const rightRank = statusRank[right.status] ?? 99;
         if (leftRank !== rightRank) return leftRank - rightRank;
       }
-      const dueDiff = dueValue(left) - dueValue(right);
-      if (dueDiff !== 0) return dueDiff;
+      const duePresenceDiff = Number(hasDue(right)) - Number(hasDue(left));
+      if (duePresenceDiff !== 0) return duePresenceDiff;
+      if (hasDue(left) && hasDue(right)) {
+        const distanceDiff = dueDistance(left) - dueDistance(right);
+        if (distanceDiff !== 0) return distanceDiff;
+        const dueDiff = dueValue(left) - dueValue(right);
+        if (dueDiff !== 0) return dueDiff;
+      } else {
+        const priorityDiff = priorityValue(left) - priorityValue(right);
+        if (priorityDiff !== 0) return priorityDiff;
+      }
       return createdValue(right) - createdValue(left);
     });
   }
@@ -1126,15 +1140,7 @@
 
     const taskList = $("#dash-tasks");
     if (taskList) {
-      const upcomingTasks = sortTasksForDisplay(
-        tasks.filter((task) => task.due_at && task.due_at.slice(0, 10) >= window.APP_BOOT.today),
-        "",
-      );
-      const backlogTasks = sortTasksForDisplay(
-        tasks.filter((task) => !task.due_at || task.due_at.slice(0, 10) < window.APP_BOOT.today),
-        "",
-      );
-      const dashboardTasks = [...upcomingTasks, ...backlogTasks].slice(0, 5);
+      const dashboardTasks = sortTasksForDisplay(tasks, "").slice(0, 5);
       taskList.classList.toggle("empty-state", dashboardTasks.length === 0);
       taskList.innerHTML = dashboardTasks.length ? dashboardTasks.map((task) => renderTaskItem(task, true)).join("") : "No tasks yet.";
     }
