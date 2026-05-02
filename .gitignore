@@ -9,3 +9,8 @@ data/*.db
 data/*.db-*
 backups/*.json
 .DS_Store
+node_modules/
+dist/
+.pnpm-store/
+.vite/
+coverage/

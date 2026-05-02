@@ -2,52 +2,54 @@
 {% block content %}
 <section class="tasks-command-grid">
   <article class="glass-panel tasks-intake-panel" data-tilt>
-    <div class="panel-heading">
-      <div>
-        <p class="eyebrow">Task Intake</p>
-        <h1>Use Tasks for what you need to finish.</h1>
+    <div class="tasks-intake-layout">
+      <div class="tasks-intake-copy">
+        <p class="eyebrow">Queue</p>
+        <h1>Use Tasks for work that needs to be finished, not merely remembered.</h1>
+        <p class="lead-text">Add a clear title, attach a subject when useful, give it a due time only when the deadline matters, and let the queue sort what should rise first.</p>
       </div>
+
+      <form id="task-form" class="form-grid">
+        <label>Title <input name="title" required maxlength="240" placeholder="Finish calculus exercises"></label>
+        <label>Subject <select name="subject_id"><option value="">No subject</option></select></label>
+        <label>Priority
+          <select name="priority">
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+        <label>Due <input type="datetime-local" name="due_at"></label>
+        <label>Estimate <input type="number" name="estimated_minutes" min="0" placeholder="Minutes"></label>
+        <label class="wide">Notes <textarea name="notes" rows="4" placeholder="Context, references, or completion criteria"></textarea></label>
+        <button class="primary-button" type="submit">Create Task</button>
+      </form>
     </div>
-    <form id="task-form" class="form-grid">
-      <label>Title <input name="title" required maxlength="240" placeholder="Finish calculus exercises"></label>
-      <label>Subject <select name="subject_id"><option value="">No subject</option></select></label>
-      <label>Priority
-        <select name="priority">
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="low">Low</option>
-        </select>
-      </label>
-      <label>Due <input type="datetime-local" name="due_at"></label>
-      <label>Estimate <input type="number" name="estimated_minutes" min="0" placeholder="Minutes"></label>
-      <label class="wide">Notes <textarea name="notes" rows="4" placeholder="Context, references, or completion criteria"></textarea></label>
-      <button class="primary-button" type="submit">Create Task</button>
-    </form>
   </article>
 
   <article class="glass-panel tasks-signal-panel" data-tilt>
     <div class="panel-heading">
       <div>
-        <p class="eyebrow">Pipeline</p>
-        <h2>When to use it</h2>
+        <p class="eyebrow">How it works</p>
+        <h2>Queue logic</h2>
       </div>
     </div>
     <div class="signal-stack">
       <div class="signal-row">
         <span>Purpose</span>
-        <strong>Track work items to complete</strong>
+        <strong>Track finishable work items</strong>
       </div>
       <div class="signal-row">
-        <span>Best for</span>
-        <strong>Homework, revision, reading, practice</strong>
+        <span>Sort order</span>
+        <strong>Due first, then priority</strong>
       </div>
       <div class="signal-row">
         <span>Start Focus</span>
-        <strong>Launch study timing from a task</strong>
+        <strong>Launch timing directly from a task</strong>
       </div>
       <div class="signal-row">
-        <span>Calendar link</span>
-        <strong>Add a schedule block only when time matters</strong>
+        <span>Schedule</span>
+        <strong>Add calendar blocks only when time needs booking</strong>
       </div>
     </div>
   </article>
@@ -55,10 +57,10 @@
 
 <section class="tasks-board-layout">
   <article class="glass-panel panel task-stream-panel" data-tilt>
-    <div class="panel-heading">
+    <div class="task-stream-topline">
       <div>
-        <p class="eyebrow">Queue</p>
-        <h2>Task List</h2>
+        <p class="eyebrow">Task List</p>
+        <h2>Priority-sorted execution view</h2>
       </div>
       <div class="tasks-list-controls">
         <div class="segmented-control task-period-filter" id="task-period-filter">
@@ -75,6 +77,7 @@
         </select>
       </div>
     </div>
+
     <div class="tasks-period-summary">
       <div class="tasks-period-caption" id="task-period-caption">This week</div>
       <div class="tasks-period-metrics">
@@ -92,6 +95,7 @@
         </div>
       </div>
     </div>
+
     <div id="task-list" class="stack-list empty-state">No tasks yet.</div>
   </article>
 </section>

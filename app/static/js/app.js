@@ -543,6 +543,41 @@
     window.addEventListener("resize", sync, { passive: true });
   }
 
+  function initScrollReveal() {
+    const seen = new Set();
+    const targets = [
+      ...$$(".workspace-topbar"),
+      ...$$(".main-content > *"),
+      ...$$(".main-content [data-tilt]"),
+    ].filter((node) => {
+      if (!node || seen.has(node)) return false;
+      seen.add(node);
+      return true;
+    });
+    if (!targets.length) return;
+
+    if (!("IntersectionObserver" in window)) {
+      targets.forEach((target) => target.classList.add("is-visible"));
+      return;
+    }
+
+    targets.forEach((target, index) => {
+      target.classList.add("scroll-reveal");
+      target.style.setProperty("--reveal-delay", `${Math.min(index * 48, 240)}ms`);
+    });
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      });
+    }, {
+      threshold: 0.14,
+      rootMargin: "0px 0px -8% 0px",
+    });
+    targets.forEach((target) => observer.observe(target));
+  }
+
   async function loadBasics() {
     const [subjects, tasks] = await Promise.all([api("/api/subjects"), api("/api/tasks")]);
     state.subjects = subjects;
@@ -3669,6 +3704,7 @@
     initSceneCanvas();
     initDashboardParallax();
     bindTiltPanels();
+    initScrollReveal();
 
     const page = document.body.dataset.page;
     if (page === "auth") {

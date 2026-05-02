@@ -1,100 +1,109 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="dashboard-stage dashboard-reframed">
-  <article class="glass-panel dashboard-clock-panel" data-tilt>
-    <div class="dashboard-command-head">
-      <div class="dashboard-command-copy">
-        <p class="eyebrow">Today at a Glance</p>
-        <h1>Today's total, current momentum, and the next work that matters.</h1>
-      </div>
-    </div>
+<section class="dashboard-flow">
+  <article class="glass-panel dashboard-hero-surface dashboard-stage-band" data-tilt>
+    <div class="dashboard-hero-layout">
+      <div class="dashboard-hero-copy">
+        <p class="eyebrow">Home</p>
+        <h1>Everything important for today, without turning the page into a wall of widgets.</h1>
+        <p class="lead-text">Track live focus, keep the next work visible, and stay close to the calendar from one calmer surface designed more like a premium product page than a dense admin panel.</p>
 
-    <div class="dashboard-glance-grid">
-      <div class="dashboard-clock-stack">
-        <div class="dashboard-clock-visual">
-          <div class="dashboard-clock-shell">
-            <div class="dashboard-clock-facet facet-a" aria-hidden="true"></div>
-            <div class="dashboard-clock-facet facet-b" aria-hidden="true"></div>
-            <div class="dashboard-clock-facet facet-c" aria-hidden="true"></div>
-            <div class="dashboard-clock-lattice" aria-hidden="true"></div>
-            <div class="dashboard-clock-aura aura-a" aria-hidden="true"></div>
-            <div class="dashboard-clock-aura aura-b" aria-hidden="true"></div>
-            <div class="dashboard-clock-grid" aria-hidden="true"></div>
-            <div class="dashboard-clock-rings" aria-hidden="true">
-              <span class="ring-a"></span>
-              <span class="ring-b"></span>
-              <span class="ring-c"></span>
-            </div>
-            <div class="dashboard-clock-orbit orbit-a" aria-hidden="true"></div>
-            <div class="dashboard-clock-orbit orbit-b" aria-hidden="true"></div>
-            <div class="dashboard-clock-beam" aria-hidden="true"></div>
-            <canvas id="dashboard-clock-canvas" class="dashboard-clock-canvas" width="680" height="520"></canvas>
-            <div class="dashboard-clock-overlay">
-              <span id="dashboard-hero-label">Today's total</span>
-              <strong id="dashboard-local-time">00:00:00</strong>
-              <small id="dashboard-local-date">{{ today }}</small>
-            </div>
-            <div class="glass-inset dashboard-visual-actions">
-              <div class="hero-actions">
-                <a class="primary-button" href="/focus">Start Focus</a>
-                <a class="secondary-button" href="/tasks">View Tasks</a>
-                <a class="secondary-button" href="/calendar">Open Calendar</a>
-              </div>
-              <form class="range-controls dashboard-range-strip" id="dashboard-range">
-                <label>Start <input type="date" name="start" value="{{ today }}"></label>
-                <label>End <input type="date" name="end" value="{{ today }}"></label>
-                <button class="secondary-button" type="submit">Refresh</button>
-              </form>
-            </div>
+        <form class="range-controls dashboard-range-inline" id="dashboard-range">
+          <label>Start <input type="date" name="start" value="{{ today }}"></label>
+          <label>End <input type="date" name="end" value="{{ today }}"></label>
+          <button class="secondary-button" type="submit">Refresh</button>
+        </form>
+
+        <div class="dashboard-signal-inline">
+          <div class="dashboard-signal-item">
+            <span>Workspace</span>
+            <strong>Local time, live progress, private data</strong>
+          </div>
+          <div class="dashboard-signal-item">
+            <span>Today</span>
+            <strong>{{ today }}</strong>
           </div>
         </div>
       </div>
 
-      <div class="dashboard-clock-summary">
-        <div class="dashboard-kpi-strip dashboard-kpi-strip-tight">
-          <article class="metric glass-inset dashboard-kpi-card">
-            <span>Total focus</span>
-            <strong id="dash-total">0h 00m</strong>
-            <small id="dash-session-count">0 sessions</small>
-          </article>
-          <article class="metric glass-inset dashboard-kpi-card">
-            <span>Current streak</span>
-            <strong id="dash-streak">0 days</strong>
-            <small>Active study days in a row</small>
-          </article>
-          <article class="metric glass-inset dashboard-kpi-card">
-            <span>Pending tasks</span>
-            <strong id="dash-open-tasks">0</strong>
-            <small>Items not completed</small>
-          </article>
+      <div class="dashboard-stage-cluster">
+        <div class="dashboard-orbit-display">
+          <div class="dashboard-orbit-glow glow-a" aria-hidden="true"></div>
+          <div class="dashboard-orbit-glow glow-b" aria-hidden="true"></div>
+          <div class="dashboard-orbit-grid" aria-hidden="true"></div>
+          <div class="dashboard-orbit-grid orbit-tilt" aria-hidden="true"></div>
+          <div class="dashboard-orbit-rings" aria-hidden="true">
+            <span class="ring ring-a"></span>
+            <span class="ring ring-b"></span>
+            <span class="ring ring-c"></span>
+          </div>
+          <div class="dashboard-orbit-beam" aria-hidden="true"></div>
+          <canvas id="dashboard-clock-canvas" class="dashboard-clock-canvas" width="720" height="520"></canvas>
+          <div class="dashboard-orbit-core">
+            <span id="dashboard-hero-label">Today's total</span>
+            <strong id="dashboard-local-time">00:00:00</strong>
+            <small id="dashboard-local-date">{{ today }}</small>
+          </div>
+          <div class="dashboard-orbit-chip chip-a">Live session</div>
+          <div class="dashboard-orbit-chip chip-b">Daily tempo</div>
+          <div class="dashboard-orbit-chip chip-c">Queue and calendar</div>
+        </div>
+
+        <div class="dashboard-stage-meta">
+          <div class="dashboard-stage-actions">
+            <a class="primary-button" href="/focus">Start Focus</a>
+            <a class="secondary-button" href="/tasks">Open Tasks</a>
+            <a class="secondary-button" href="/calendar">Open Calendar</a>
+          </div>
+
+          <div class="dashboard-metric-row">
+            <article class="glass-inset dashboard-metric-card">
+              <span>Total focus</span>
+              <strong id="dash-total">0h 00m</strong>
+              <small id="dash-session-count">0 sessions</small>
+            </article>
+            <article class="glass-inset dashboard-metric-card">
+              <span>Current streak</span>
+              <strong id="dash-streak">0 days</strong>
+              <small>Consecutive active study days</small>
+            </article>
+            <article class="glass-inset dashboard-metric-card">
+              <span>Pending tasks</span>
+              <strong id="dash-open-tasks">0</strong>
+              <small>Items still waiting to finish</small>
+            </article>
+          </div>
         </div>
       </div>
     </div>
-
   </article>
-</section>
 
-<section class="dashboard-workbench dashboard-workbench-refined">
-  <article class="glass-panel panel dashboard-workbench-panel" data-tilt>
-    <div class="dashboard-board-grid">
-      <section class="dashboard-board-section">
-        <div class="panel-heading">
+  <article class="glass-panel dashboard-agenda-band dashboard-wide-band" data-tilt>
+    <div class="dashboard-band-intro">
+      <p class="eyebrow">Today Flow</p>
+      <h2>Two large surfaces for the next work and the next time block.</h2>
+      <p class="lead-text">Tasks answer what still needs to be finished. Calendar answers when it will happen. The homepage only keeps the parts that matter now.</p>
+    </div>
+
+    <div class="dashboard-band-columns">
+      <section class="dashboard-column dashboard-column-surface">
+        <div class="dashboard-column-head">
           <div>
-            <p class="eyebrow">Tasks</p>
-            <h2>Today's Tasks</h2>
+            <p class="eyebrow">Queue</p>
+            <h3>Today's Tasks</h3>
           </div>
           <a class="text-link" href="/tasks">Manage</a>
         </div>
         <div id="dash-tasks" class="stack-list empty-state">No tasks yet.</div>
       </section>
 
-      <section class="dashboard-board-section">
-        <div class="panel-heading">
+      <section class="dashboard-column dashboard-column-surface">
+        <div class="dashboard-column-head">
           <div>
             <p class="eyebrow">Schedule</p>
-            <h2>Today's Calendar</h2>
+            <h3>Today's Calendar</h3>
           </div>
-          <a class="text-link" href="/calendar">Plan</a>
+          <a class="text-link" href="/calendar">Open</a>
         </div>
         <div id="dash-events" class="stack-list empty-state">No events today.</div>
       </section>

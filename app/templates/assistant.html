@@ -5,15 +5,16 @@
     <section class="assistant-main">
       <div class="assistant-toolbar">
         <div class="assistant-toolbar-copy">
-          <p class="eyebrow">GPT Assistant</p>
-          <h1>Planning and chat in one local workspace</h1>
-          <p class="lead-text">Use planning mode for structured daily task drafting, or switch to chat mode for free conversation with saved history.</p>
+          <p class="eyebrow">Workspace</p>
+          <p class="lead-text assistant-toolbar-note">Planning and chat, with draft-first apply.</p>
         </div>
-        <div class="assistant-toolbar-meta">
+
+        <div class="assistant-toolbar-strip">
           <div class="segmented-control assistant-mode-switch" id="assistant-mode-control">
             <button class="active" type="button" data-mode="planning">Planning</button>
             <button type="button" data-mode="chat">Chat</button>
           </div>
+
           <form id="llm-model-form" class="assistant-inline-config">
             <label>
               <span>Model</span>
@@ -33,6 +34,7 @@
               </select>
             </label>
           </form>
+
           <div class="assistant-range-cluster planning-only">
             <label>Start <input type="date" form="ai-plan-form" name="start" value="{{ today }}"></label>
             <label>End <input type="date" form="ai-plan-form" name="end" value="{{ today }}"></label>
@@ -44,18 +46,18 @@
         <div class="glass-inset assistant-thread-shell">
           <div class="assistant-thread-head">
             <div>
-              <p class="eyebrow">Planning</p>
-              <h2>Planner Thread</h2>
+              <p class="eyebrow">Planner</p>
+              <h2>Planning Thread</h2>
             </div>
           </div>
           <div id="ai-plan-thread" class="assistant-thread empty-state">Start a planning conversation. Ask for task breakdowns first, and mention dates or time windows only when you want calendar blocks.</div>
 
-          <form id="ai-plan-form" class="assistant-composer">
+          <form id="ai-plan-form" class="assistant-composer assistant-composer-planning">
             <label class="assistant-composer-box">
               <textarea name="instruction" rows="4" placeholder="Plan my next two days around overdue math tasks and one English reading block."></textarea>
             </label>
             <div class="assistant-composer-actions">
-              <button class="secondary-button" id="ai-plan-clear" type="button">Clear Thread</button>
+              <button class="secondary-button" id="ai-plan-clear" type="button">Clear</button>
               <button class="primary-button" type="submit">Send</button>
             </div>
           </form>
@@ -71,14 +73,14 @@
             </div>
             <div class="assistant-chat-head-actions">
               <button class="secondary-button" id="ai-chat-new" type="button">New Chat</button>
-              <button class="danger-button" id="ai-chat-delete" type="button" disabled>Delete Chat</button>
+              <button class="danger-button" id="ai-chat-delete" type="button" disabled>Delete</button>
             </div>
           </div>
           <div id="ai-chat-thread" class="assistant-thread empty-state">Start a free conversation. Previous chats stay available in the history panel.</div>
 
-          <form id="ai-chat-form" class="assistant-composer">
+          <form id="ai-chat-form" class="assistant-composer assistant-composer-chat">
             <label class="assistant-composer-box">
-              <textarea name="message" rows="4" placeholder="Ask anything about studying, scheduling, or just chat naturally."></textarea>
+              <textarea name="message" rows="4" placeholder="Ask anything naturally. Press Enter to send, Shift + Enter for a new line."></textarea>
             </label>
             <div class="assistant-composer-actions">
               <div class="assistant-chat-status" id="ai-chat-status">Local chat history</div>
@@ -91,9 +93,9 @@
 
     <aside class="assistant-sidebar">
       <article class="glass-inset assistant-sidebar-panel assistant-sidebar-planning">
-        <div class="panel-heading">
+        <div class="panel-heading compact">
           <div>
-            <p class="eyebrow">Current Draft</p>
+            <p class="eyebrow">Draft</p>
             <h2>Planned Items</h2>
           </div>
           <span id="ai-draft-status" class="chip">No draft</span>
@@ -102,7 +104,7 @@
       </article>
 
       <article class="glass-inset assistant-sidebar-panel assistant-sidebar-chat">
-        <div class="panel-heading">
+        <div class="panel-heading compact">
           <div>
             <p class="eyebrow">History</p>
             <h2>Previous Chats</h2>

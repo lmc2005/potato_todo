@@ -1,0 +1,15 @@
+{
+  "name": "potato-todo-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.12.1",
+  "scripts": {
+    "dev:web": "corepack pnpm --filter @potato/web dev",
+    "build:web": "corepack pnpm --filter @potato/web build",
+    "lint:web": "corepack pnpm --filter @potato/web lint",
+    "typecheck:web": "corepack pnpm --filter @potato/web typecheck",
+    "test:api": "./.potato_todo_env/bin/python -m pytest -q tests",
+    "test:api:v2": "./.potato_todo_env/bin/python -m pytest -q apps/api/tests",
+    "test": "corepack pnpm lint:web && corepack pnpm typecheck:web && corepack pnpm test:api:v2"
+  }
+}

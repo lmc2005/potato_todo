@@ -71,10 +71,32 @@
   </article>
 
   <div class="focus-side">
-    <article class="glass-panel focus-form-panel" data-tilt>
+    <article class="glass-panel focus-form-panel focus-editor-panel" data-tilt>
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">Free Timer</p>
+          <p class="eyebrow">Add Subject</p>
+          <h2>Build the subject library</h2>
+        </div>
+        <span class="chip" id="focus-subject-mode">Create mode</span>
+      </div>
+      <form id="focus-subject-form" class="form-grid focus-subject-create" data-mode="create">
+        <input type="hidden" name="subject_id">
+        <label>Name <input name="name" required maxlength="120" placeholder="Mathematics"></label>
+        <label>Color <input type="color" name="color" value="#5E8CFF"></label>
+        <label>Daily goal <input type="number" name="daily_goal_minutes" min="0" value="60"></label>
+        <label>Weekly goal <input type="number" name="weekly_goal_minutes" min="0" value="420"></label>
+        <label>Monthly goal <input type="number" name="monthly_goal_minutes" min="0" value="1800"></label>
+        <div class="focus-subject-form-actions wide">
+          <button class="primary-button" id="focus-subject-submit" type="submit">Add Subject</button>
+          <button class="secondary-button" id="focus-subject-cancel" type="button" hidden>Cancel</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="glass-panel focus-form-panel focus-count-panel" data-tilt>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Count</p>
           <h2>Count up or countdown</h2>
         </div>
         <button class="secondary-button" id="request-notification">Enable Alerts</button>
@@ -93,7 +115,7 @@
       </form>
     </article>
 
-    <article class="glass-panel focus-form-panel" data-tilt>
+    <article class="glass-panel focus-form-panel focus-pomodoro-panel" data-tilt>
       <div class="panel-heading">
         <div>
           <p class="eyebrow">Pomodoro</p>
@@ -115,23 +137,10 @@
   <article class="glass-panel focus-form-panel focus-subject-library" data-tilt>
     <div class="panel-heading">
       <div>
-        <p class="eyebrow">Subjects</p>
-        <h2>Subject Library</h2>
+        <p class="eyebrow">Subject Library</p>
+        <h2>Color-coded subjects and goals</h2>
       </div>
-      <span class="chip" id="focus-subject-mode">Create mode</span>
     </div>
-    <form id="focus-subject-form" class="form-grid focus-subject-create" data-mode="create">
-      <input type="hidden" name="subject_id">
-      <label>Name <input name="name" required maxlength="120" placeholder="Mathematics"></label>
-      <label>Color <input type="color" name="color" value="#5E8CFF"></label>
-      <label>Daily goal <input type="number" name="daily_goal_minutes" min="0" value="60"></label>
-      <label>Weekly goal <input type="number" name="weekly_goal_minutes" min="0" value="420"></label>
-      <label>Monthly goal <input type="number" name="monthly_goal_minutes" min="0" value="1800"></label>
-      <div class="focus-subject-form-actions wide">
-        <button class="primary-button" id="focus-subject-submit" type="submit">Add Subject</button>
-        <button class="secondary-button" id="focus-subject-cancel" type="button" hidden>Cancel</button>
-      </div>
-    </form>
     <div id="focus-subject-list" class="focus-subject-scroller"></div>
   </article>
 </section>

@@ -6,32 +6,41 @@
   <title>POTATO-TODO</title>
   <link rel="icon" type="image/svg+xml" href="/static/potato.svg">
   <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="/static/css/repay-redesign.css">
 </head>
 <body data-page="{{ active_page }}">
   {% if active_page == "dashboard" %}
-    {% set shell_title = "Today at a Glance" %}
-    {% set shell_subtitle = "Live local time, today's focus momentum, and the next pieces of work that matter." %}
+    {% set shell_kicker = "Home" %}
+    {% set shell_title = "Daily home" %}
+    {% set shell_subtitle = "One quieter surface for timing, next actions, schedule, and daily momentum." %}
   {% elif active_page == "focus" %}
-    {% set shell_title = "Focus Command" %}
-    {% set shell_subtitle = "Run count-up, countdown, and Pomodoro sessions with persistent local timing." %}
+    {% set shell_kicker = "Focus" %}
+    {% set shell_title = "Focus studio" %}
+    {% set shell_subtitle = "Run count-up, countdown, and Pomodoro sessions in one persistent timing surface." %}
   {% elif active_page == "tasks" %}
-    {% set shell_title = "Task Pipeline" %}
-    {% set shell_subtitle = "Convert study goals into accountable task flow with clear priority and due-time handling." %}
+    {% set shell_kicker = "Queue" %}
+    {% set shell_title = "Task queue" %}
+    {% set shell_subtitle = "Turn study goals into a clean execution queue with due-time awareness and clearer status flow." %}
   {% elif active_page == "calendar" %}
-    {% set shell_title = "Schedule Control" %}
-    {% set shell_subtitle = "Operate day, week, and month planning with reminder coverage before each study block." %}
+    {% set shell_kicker = "Schedule" %}
+    {% set shell_title = "Schedule board" %}
+    {% set shell_subtitle = "Shape day, week, and month study blocks with reminders before each session begins." %}
   {% elif active_page == "analytics" %}
-    {% set shell_title = "Performance Analytics" %}
-    {% set shell_subtitle = "Review study distribution, consistency, subject pressure, and AI-assisted feedback." %}
+    {% set shell_kicker = "Reports" %}
+    {% set shell_title = "Study reports" %}
+    {% set shell_subtitle = "Read focus quality, study distribution, consistency, and completion trends from multiple angles." %}
   {% elif active_page == "assistant" %}
-    {% set shell_title = "GPT Assistant" %}
-    {% set shell_subtitle = "Plan study blocks conversationally, review structured drafts, and apply them to tasks and calendar." %}
+    {% set shell_kicker = "Assistant" %}
+    {% set shell_title = "GPT assistant" %}
+    {% set shell_subtitle = "Plan study blocks conversationally, chat freely, and apply structured drafts to tasks or calendar." %}
   {% elif active_page == "rooms" %}
+    {% set shell_kicker = "Rooms" %}
     {% set shell_title = "Study Rooms" %}
-    {% set shell_subtitle = "Join shared focus rooms by code and compare today's progress in near real time." %}
+    {% set shell_subtitle = "Join shared focus rooms by code and compare today’s progress in near real time." %}
   {% else %}
-    {% set shell_title = "Workspace Settings" %}
-    {% set shell_subtitle = "Control personal preferences, backup scope, and deployment-level service status." %}
+    {% set shell_kicker = "Settings" %}
+    {% set shell_title = "Workspace settings" %}
+    {% set shell_subtitle = "Manage personal defaults, backup scope, and connection settings from one quieter control page." %}
   {% endif %}
 
   <div class="scene-backdrop" aria-hidden="true">
@@ -52,116 +61,81 @@
     <div class="scene-vignette"></div>
   </div>
 
-  <div class="app-shell">
-    <aside class="app-rail">
-      <div class="rail-frame glass-rail">
+  <div class="app-shell app-shell-repay">
+    <header class="site-header glass-panel">
+      <div class="site-header-row">
         <a class="brand" href="/" aria-label="Study Planner home">
           <span class="brand-mark"></span>
           <span class="brand-copy">
             <strong>POTATO-TODO</strong>
-            <small>Shared study workspace</small>
+            <small>Study planner platform</small>
           </span>
         </a>
 
-        <div class="rail-mini-note">
-          <span class="intel-label">Account workspace</span>
-          <small>Focus, tasks, schedule, analytics, GPT, and study rooms in one flow.</small>
-        </div>
-
-        <nav class="rail-nav" aria-label="Primary navigation">
-          <a class="{{ 'active' if active_page == 'dashboard' else '' }}" href="/">
-            <span class="nav-index">00</span>
-            <span class="nav-copy">
-              <strong>Dashboard</strong>
-              <small>Overview</small>
-            </span>
-          </a>
-          <a class="{{ 'active' if active_page == 'focus' else '' }}" href="/focus">
-            <span class="nav-index">01</span>
-            <span class="nav-copy">
-              <strong>Focus</strong>
-              <small>Timer</small>
-            </span>
-          </a>
-          <a class="{{ 'active' if active_page == 'tasks' else '' }}" href="/tasks">
-            <span class="nav-index">02</span>
-            <span class="nav-copy">
-              <strong>Tasks</strong>
-              <small>Todo</small>
-            </span>
-          </a>
-          <a class="{{ 'active' if active_page == 'calendar' else '' }}" href="/calendar">
-            <span class="nav-index">03</span>
-            <span class="nav-copy">
-              <strong>Calendar</strong>
-              <small>Schedule</small>
-            </span>
-          </a>
-          <a class="{{ 'active' if active_page == 'analytics' else '' }}" href="/analytics">
-            <span class="nav-index">04</span>
-            <span class="nav-copy">
-              <strong>Analytics</strong>
-              <small>Insights</small>
-            </span>
-          </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a class="{{ 'active' if active_page == 'dashboard' else '' }}" href="/">Home</a>
+          <a class="{{ 'active' if active_page == 'focus' else '' }}" href="/focus">Focus</a>
+          <a class="{{ 'active' if active_page == 'tasks' else '' }}" href="/tasks">Queue</a>
+          <a class="{{ 'active' if active_page == 'calendar' else '' }}" href="/calendar">Schedule</a>
+          <a class="{{ 'active' if active_page == 'analytics' else '' }}" href="/analytics">Reports</a>
           {% if ai_enabled %}
-          <a class="{{ 'active' if active_page == 'assistant' else '' }}" href="/assistant">
-            <span class="nav-index">05</span>
-            <span class="nav-copy">
-              <strong>GPT Assistant</strong>
-              <small>Planner</small>
-            </span>
-          </a>
+          <a class="{{ 'active' if active_page == 'assistant' else '' }}" href="/assistant">Assistant</a>
           {% endif %}
-          <a class="{{ 'active' if active_page == 'rooms' else '' }}" href="/rooms">
-            <span class="nav-index">06</span>
-            <span class="nav-copy">
-              <strong>Rooms</strong>
-              <small>Study room</small>
-            </span>
-          </a>
-          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">
-            <span class="nav-index">07</span>
-            <span class="nav-copy">
-              <strong>Settings</strong>
-              <small>System</small>
-            </span>
-          </a>
+          <a class="{{ 'active' if active_page == 'rooms' else '' }}" href="/rooms">Rooms</a>
+          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">Settings</a>
         </nav>
 
-        <div class="rail-footer">
-          <div class="rail-status-chip">
-            <span class="status-dot"></span>
-            <span>{{ current_user_label }}</span>
-          </div>
-          <form action="/logout" method="post" class="rail-logout-form">
-            <button class="secondary-button rail-logout-button" type="submit">Log Out</button>
+        <div class="site-header-actions">
+          <span class="topbar-pill">{{ current_user_label }}</span>
+          {% if active_page == "focus" %}
+          <a class="primary-button" href="/tasks">Open Tasks</a>
+          {% else %}
+          <a class="primary-button" href="/focus">Start Focus</a>
+          {% endif %}
+          <form action="/logout" method="post">
+            <button class="secondary-button" type="submit">Log Out</button>
           </form>
         </div>
       </div>
-    </aside>
+    </header>
 
-    <div class="workspace">
+    <div class="workspace workspace-repay">
       {% if active_page == "dashboard" %}
-        <header class="workspace-topbar glass-panel dashboard-topbar-quote">
-          <span class="dashboard-topbar-kicker">Daily Quote</span>
-          <blockquote id="dashboard-top-quote-text" class="dashboard-topbar-quote-text">Loading today's quote...</blockquote>
+        <header class="workspace-topbar glass-panel dashboard-topbar-quote repay-hero-quote">
+          <div class="repay-hero-copy dashboard-quote-copy">
+            <span class="dashboard-topbar-kicker">Daily Quote</span>
+            <blockquote id="dashboard-top-quote-text" class="dashboard-topbar-quote-text">Loading today's quote...</blockquote>
+          </div>
           <div class="dashboard-topbar-credit">
             <strong id="dashboard-top-quote-author">-- POTATO-TODO</strong>
             <span id="dashboard-top-quote-source">Local reminder</span>
           </div>
         </header>
       {% else %}
-        <header class="workspace-topbar glass-panel">
-          <div class="topbar-copy">
-            <span class="topbar-kicker">{{ active_page|title }}</span>
+        <header class="workspace-topbar glass-panel repay-page-hero">
+          <div class="topbar-copy repay-hero-copy">
+            <span class="topbar-kicker">{{ shell_kicker }}</span>
             <strong class="topbar-title">{{ shell_title }}</strong>
             <p class="topbar-subtitle">{{ shell_subtitle }}</p>
           </div>
-          <div class="topbar-meta">
-            <span class="topbar-pill">{{ current_user.email }}</span>
-            <span class="topbar-pill">Local clock</span>
+          <div class="topbar-meta repay-hero-badges">
+            <span class="topbar-pill">{{ current_user_label }}</span>
             <span class="topbar-pill">{{ today }}</span>
+            {% if active_page == "assistant" %}
+            <span class="topbar-pill">Multi-turn assistant</span>
+            {% elif active_page == "analytics" %}
+            <span class="topbar-pill">Visual reports</span>
+            {% elif active_page == "rooms" %}
+            <span class="topbar-pill">Live competition</span>
+            {% elif active_page == "calendar" %}
+            <span class="topbar-pill">Day, week, month</span>
+            {% elif active_page == "tasks" %}
+            <span class="topbar-pill">Priority queue</span>
+            {% elif active_page == "settings" %}
+            <span class="topbar-pill">Workspace settings</span>
+            {% else %}
+            <span class="topbar-pill">Live focus studio</span>
+            {% endif %}
           </div>
         </header>
       {% endif %}
