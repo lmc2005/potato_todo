@@ -1,5 +1,6 @@
 .venv/
 .potato_todo_env/
+.env
 .playwright/
 __pycache__/
 .pytest_cache/

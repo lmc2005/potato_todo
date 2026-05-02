@@ -23,6 +23,9 @@
     dashboardStats: null,
     focusStageStarted: false,
     editingSubjectId: null,
+    rooms: [],
+    activeRoomSnapshot: null,
+    roomEventSource: null,
   };
   const DATA_COLORS = ["#2563eb", "#0f766e", "#d97706", "#e11d48", "#0891b2", "#7c3aed", "#15803d"];
 
@@ -43,6 +46,10 @@
     const text = String(value ?? "").trim();
     if (text.length <= max) return text;
     return `${text.slice(0, max - 1)}...`;
+  }
+
+  async function copyText(value) {
+    await navigator.clipboard.writeText(String(value || ""));
   }
 
   async function api(path, options = {}) {
@@ -116,6 +123,12 @@
     if (!value) return "No date";
     const date = new Date(value);
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  function emailAlias(value) {
+    const text = String(value || "").trim();
+    if (!text) return "Member";
+    return text.split("@")[0] || text;
   }
 
   function shortDateTime(value) {
@@ -3414,6 +3427,221 @@
     });
   }
 
+  function renderRoomsList() {
+    const root = $("#rooms-list");
+    const count = $("#rooms-count");
+    if (!root) return;
+    const rooms = Array.isArray(state.rooms) ? state.rooms : [];
+    if (count) count.textContent = `${rooms.length} room${rooms.length === 1 ? "" : "s"}`;
+    if (!rooms.length) {
+      root.classList.add("empty-state");
+      root.textContent = "No rooms yet. Create one or join with a room code.";
+      return;
+    }
+    root.classList.remove("empty-state");
+    root.innerHTML = rooms.map((room) => `
+      <article class="glass-inset room-list-card" data-room-id="${room.room_id}">
+        <div class="room-list-head">
+          <div>
+            <h3>${escapeHtml(room.name)}</h3>
+            <p>${escapeHtml(room.role)} · ${escapeHtml(room.membership_status)} · ${escapeHtml(room.timezone)}</p>
+          </div>
+          <span class="chip">${room.member_count}/${room.member_limit}</span>
+        </div>
+        <div class="room-list-meta">
+          <span>Code ${escapeHtml(room.join_code)}</span>
+          <span>${escapeHtml(room.status)}</span>
+        </div>
+        <a class="primary-button room-open-link" href="/rooms/${room.room_id}">Open Room</a>
+      </article>
+    `).join("");
+  }
+
+  async function loadRooms() {
+    state.rooms = await api("/api/rooms");
+    renderRoomsList();
+  }
+
+  function renderRoomMembers(snapshot) {
+    const root = $("#room-members-board");
+    const activeFocus = $("#room-active-focus-count");
+    const memberCount = $("#room-detail-member-count");
+    const name = $("#room-detail-name");
+    const code = $("#room-detail-code");
+    const timezone = $("#room-detail-timezone");
+    const status = $("#room-detail-status");
+    if (!root || !snapshot) return;
+    state.activeRoomSnapshot = snapshot;
+    if (activeFocus) activeFocus.textContent = `${snapshot.active_focus_count || 0} focusing`;
+    if (memberCount) memberCount.textContent = String(snapshot.member_count || 0);
+    if (name) name.textContent = snapshot.room?.name || name.textContent;
+    if (code) code.textContent = snapshot.room?.join_code || code.textContent;
+    if (timezone) timezone.textContent = snapshot.room?.timezone || timezone.textContent;
+    if (status) status.textContent = snapshot.room?.status || status.textContent;
+    const members = Array.isArray(snapshot.members) ? snapshot.members : [];
+    if (!members.length) {
+      root.classList.add("empty-state");
+      root.textContent = "No active members in this room.";
+      return;
+    }
+    root.classList.remove("empty-state");
+    root.innerHTML = members.map((member) => {
+      const completed = (member.completed_titles_today || []).map((title) => `<li>${escapeHtml(truncateText(title, 56))}</li>`).join("");
+      const inProgress = (member.in_progress_titles_today || []).map((title) => `<li>${escapeHtml(truncateText(title, 56))}</li>`).join("");
+      const actions = window.ROOM_BOOT?.is_owner && !member.role?.includes("owner")
+        ? `<button class="secondary-button room-kick-button" type="button" data-kick-user="${member.user_id}">Kick</button>`
+        : "";
+      return `
+        <article class="glass-inset room-member-card ${member.is_focusing ? "is-focusing" : ""}">
+          <div class="room-member-head">
+            <div>
+              <span class="room-rank">#${member.rank || "--"}</span>
+              <h3>${escapeHtml(member.label || emailAlias(member.email))}</h3>
+              <p>${escapeHtml(member.role || "member")}</p>
+            </div>
+            <div class="room-focus-badge">${member.is_focusing ? "Focusing now" : "Idle"}</div>
+          </div>
+          <div class="room-member-metrics">
+            <div><span>Focus</span><strong>${formatDuration(member.focus_seconds_today || 0)}</strong></div>
+            <div><span>Done</span><strong>${member.done_count_today || 0}</strong></div>
+            <div><span>Open</span><strong>${member.unfinished_count_today || 0}</strong></div>
+            <div><span>Late done</span><strong>${member.late_done_count_today || 0}</strong></div>
+          </div>
+          <div class="room-member-lists">
+            <section>
+              <h4>Completed today</h4>
+              <ul>${completed || "<li>None</li>"}</ul>
+              ${(member.completed_titles_more || 0) > 0 ? `<small>+${member.completed_titles_more} more</small>` : ""}
+            </section>
+            <section>
+              <h4>In progress</h4>
+              <ul>${inProgress || "<li>None</li>"}</ul>
+              ${(member.in_progress_titles_more || 0) > 0 ? `<small>+${member.in_progress_titles_more} more</small>` : ""}
+            </section>
+          </div>
+          <div class="button-row room-member-actions">${actions}</div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  async function loadRoomSnapshot(roomId) {
+    const snapshot = await api(`/api/rooms/${roomId}/snapshot`);
+    renderRoomMembers(snapshot);
+  }
+
+  function connectRoomStream(roomId) {
+    if (state.roomEventSource) {
+      state.roomEventSource.close();
+      state.roomEventSource = null;
+    }
+    const status = $("#room-connection-status");
+    const source = new EventSource(`/api/rooms/${roomId}/stream`);
+    state.roomEventSource = source;
+    if (status) status.textContent = "Live";
+
+    source.addEventListener("room_update", async () => {
+      try {
+        await loadRoomSnapshot(roomId);
+        if (status) status.textContent = "Live";
+      } catch (error) {
+        if (status) status.textContent = "Refresh needed";
+      }
+    });
+    source.addEventListener("ping", () => {
+      if (status) status.textContent = "Live";
+    });
+    source.onerror = () => {
+      if (status) status.textContent = "Reconnecting...";
+    };
+  }
+
+  function bindRooms() {
+    $("#room-create-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const room = await api("/api/rooms", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
+        toast("Room created.");
+        window.location.href = `/rooms/${room.id}`;
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#room-join-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const room = await api("/api/rooms/join", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
+        toast("Joined room.");
+        window.location.href = `/rooms/${room.id}`;
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    loadRooms().catch((error) => toast(error.message));
+  }
+
+  function bindRoomDetail() {
+    const root = $(".room-detail-stage");
+    const roomId = Number(root?.dataset.roomId || window.ROOM_BOOT?.id || 0);
+    if (!roomId) return;
+
+    loadRoomSnapshot(roomId).catch((error) => toast(error.message));
+    connectRoomStream(roomId);
+
+    $("#room-copy-code")?.addEventListener("click", async () => {
+      try {
+        await copyText($("#room-detail-code")?.textContent || "");
+        toast("Room code copied.");
+      } catch (error) {
+        toast("Copy failed.");
+      }
+    });
+
+    $("#room-reset-code")?.addEventListener("click", async () => {
+      try {
+        await api(`/api/rooms/${roomId}/reset-code`, { method: "POST" });
+        await loadRoomSnapshot(roomId);
+        toast("Room code reset.");
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#room-close")?.addEventListener("click", async () => {
+      try {
+        await api(`/api/rooms/${roomId}/close`, { method: "POST" });
+        await loadRoomSnapshot(roomId);
+        toast("Room closed.");
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#room-leave")?.addEventListener("click", async () => {
+      try {
+        await api(`/api/rooms/${roomId}/leave`, { method: "POST" });
+        toast("Left room.");
+        window.location.href = "/rooms";
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#room-members-board")?.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-kick-user]");
+      if (!button) return;
+      try {
+        await api(`/api/rooms/${roomId}/members/${button.dataset.kickUser}/kick`, { method: "POST" });
+        await loadRoomSnapshot(roomId);
+        toast("Member removed.");
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+  }
+
   function bindGlobalDialogs() {
     $("#schedule-reminder-open-calendar")?.addEventListener("click", (event) => {
       const modal = $("#schedule-reminder-modal");
@@ -3433,19 +3661,25 @@
     initDashboardParallax();
     bindTiltPanels();
 
+    const page = document.body.dataset.page;
+    if (page === "auth") {
+      return;
+    }
+
     try {
       await loadBasics();
     } catch (error) {
       toast(error.message);
     }
 
-    const page = document.body.dataset.page;
     if (page === "dashboard") bindDashboard();
     if (page === "focus") bindFocus();
     if (page === "tasks") bindTasks();
     if (page === "calendar") bindCalendar();
     if (page === "analytics") bindAnalytics();
     if (page === "assistant") bindAssistant();
+    if (page === "rooms" && $(".room-detail-stage")) bindRoomDetail();
+    if (page === "rooms" && !$(".room-detail-stage")) bindRooms();
     if (page === "settings") bindSettings();
     bindGlobalDialogs();
 

@@ -21,11 +21,16 @@ def _date_range(start: date, end: date) -> list[date]:
     return days
 
 
-def sync_overdue_tasks(db: Session) -> int:
+def sync_overdue_tasks(db: Session, user_id: int) -> int:
     now = now_local()
     overdue_tasks = (
         db.query(Task)
-        .filter(Task.status.in_(("todo", "in_progress")), Task.due_at.isnot(None), Task.due_at < now)
+        .filter(
+            Task.user_id == user_id,
+            Task.status.in_(("todo", "in_progress")),
+            Task.due_at.isnot(None),
+            Task.due_at < now,
+        )
         .all()
     )
     for task in overdue_tasks:
@@ -36,17 +41,21 @@ def sync_overdue_tasks(db: Session) -> int:
     return len(overdue_tasks)
 
 
-def compute_stats(db: Session, start: date, end: date) -> dict:
-    sync_overdue_tasks(db)
+def compute_stats(db: Session, user_id: int, start: date, end: date) -> dict:
+    sync_overdue_tasks(db, user_id)
     start_dt, end_dt = day_bounds(start, end)
     sessions = (
         db.query(StudySession)
-        .filter(StudySession.started_at <= end_dt, StudySession.ended_at >= start_dt)
+        .filter(
+            StudySession.user_id == user_id,
+            StudySession.started_at <= end_dt,
+            StudySession.ended_at >= start_dt,
+        )
         .order_by(StudySession.started_at.asc())
         .all()
     )
-    subjects = {subject.id: subject for subject in db.query(Subject).all()}
-    tasks = {task.id: task for task in db.query(Task).all()}
+    subjects = {subject.id: subject for subject in db.query(Subject).filter(Subject.user_id == user_id).all()}
+    tasks = {task.id: task for task in db.query(Task).filter(Task.user_id == user_id).all()}
 
     total_seconds = sum(session.focus_seconds for session in sessions)
     by_subject: dict[int, int] = defaultdict(int)
@@ -91,7 +100,7 @@ def compute_stats(db: Session, start: date, end: date) -> dict:
         {"date": day, "seconds": seconds, "minutes": round(seconds / 60, 1)}
         for day, seconds in by_day.items()
     ]
-    task_completion_trend = _task_completion_trend(db, start, end)
+    task_completion_trend = _task_completion_trend(db, user_id, start, end)
 
     active_days = [datetime.fromisoformat(item["date"]).date() for item in daily_trend if item["seconds"] > 0]
     streak_days = _current_streak(active_days, end)
@@ -161,11 +170,16 @@ def _goal_completion(subjects: dict[int, Subject], by_subject: dict[int, int], s
     return sorted(rows, key=lambda row: row["completion"])
 
 
-def _task_completion_trend(db: Session, start: date, end: date) -> list[dict]:
+def _task_completion_trend(db: Session, user_id: int, start: date, end: date) -> list[dict]:
     start_dt, end_dt = day_bounds(start, end)
     tasks = (
         db.query(Task)
-        .filter(Task.due_at.isnot(None), Task.due_at >= start_dt, Task.due_at <= end_dt)
+        .filter(
+            Task.user_id == user_id,
+            Task.due_at.isnot(None),
+            Task.due_at >= start_dt,
+            Task.due_at <= end_dt,
+        )
         .all()
     )
     by_day: dict[str, dict[str, int | float | None]] = {

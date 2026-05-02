@@ -11,7 +11,13 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models import AiConversation, AiDraft, AiMessage, ScheduleEvent, Subject, Task, now_local
-from app.services.settings import get_setting, set_setting
+from app.services.settings import (
+    get_public_llm_settings,
+    get_setting,
+    get_site_ai_config,
+    get_user_setting,
+    set_setting,
+)
 from app.services.stats import compute_stats
 
 logger = logging.getLogger("potato_todo.ai")
@@ -29,8 +35,14 @@ TIME_PLANNING_RE = re.compile(
 )
 
 
-def build_snapshot(db: Session, start: date, end: date) -> dict[str, Any]:
-    stats = compute_stats(db, start, end)
+def ensure_ai_enabled(db: Session) -> None:
+    config = get_site_ai_config(db)
+    if not config["enabled"]:
+        raise HTTPException(status_code=503, detail="AI features are disabled for this deployment.")
+
+
+def build_snapshot(db: Session, user_id: int, start: date, end: date) -> dict[str, Any]:
+    stats = compute_stats(db, user_id, start, end)
     subjects = [
         {
             "id": subject.id,
@@ -40,7 +52,7 @@ def build_snapshot(db: Session, start: date, end: date) -> dict[str, Any]:
             "monthly_goal_minutes": subject.monthly_goal_minutes,
             "archived": subject.archived,
         }
-        for subject in db.query(Subject).order_by(Subject.name.asc()).all()
+        for subject in db.query(Subject).filter(Subject.user_id == user_id).order_by(Subject.name.asc()).all()
     ]
     tasks = [
         {
@@ -53,7 +65,7 @@ def build_snapshot(db: Session, start: date, end: date) -> dict[str, Any]:
             "estimated_minutes": task.estimated_minutes,
             "notes": task.notes,
         }
-        for task in db.query(Task).order_by(Task.created_at.desc()).all()
+        for task in db.query(Task).filter(Task.user_id == user_id).order_by(Task.created_at.desc()).all()
     ]
     events = [
         {
@@ -66,9 +78,15 @@ def build_snapshot(db: Session, start: date, end: date) -> dict[str, Any]:
             "source": event.source,
             "notes": event.notes,
         }
-        for event in db.query(ScheduleEvent).order_by(ScheduleEvent.start_at.asc()).all()
+        for event in db.query(ScheduleEvent).filter(ScheduleEvent.user_id == user_id).order_by(ScheduleEvent.start_at.asc()).all()
     ]
-    return {"range": {"start": start.isoformat(), "end": end.isoformat()}, "subjects": subjects, "tasks": tasks, "events": events, "stats": stats}
+    return {
+        "range": {"start": start.isoformat(), "end": end.isoformat()},
+        "subjects": subjects,
+        "tasks": tasks,
+        "events": events,
+        "stats": stats,
+    }
 
 
 def _extract_json(content: str) -> dict[str, Any]:
@@ -96,14 +114,17 @@ def _normalize_conversation(conversation: list[dict[str, str]] | None) -> list[d
     return turns[-12:]
 
 
-def _llm_config(db: Session) -> tuple[str, str, str, str]:
-    base_url = (get_setting(db, "llm_base_url", "") or "").rstrip("/")
-    api_key = get_setting(db, "llm_api_key", "") or ""
-    model = get_setting(db, "llm_model", "gpt-5.4") or "gpt-5.4"
-    reasoning_effort = (get_setting(db, "llm_reasoning_effort", "medium") or "").strip()
-    if not base_url or not api_key:
-        raise HTTPException(status_code=400, detail="LLM base URL and API key are required in Settings.")
-    return base_url, api_key, model, reasoning_effort
+def _llm_config(db: Session, user_id: int | None = None) -> tuple[str, str, str, str]:
+    config = get_site_ai_config(db)
+    if not config["enabled"] or not config["base_url"] or not config["api_key"]:
+        raise HTTPException(status_code=503, detail="AI features are not configured for this deployment.")
+
+    model = config["model"]
+    reasoning_effort = config["reasoning_effort"]
+    if user_id is not None and not config["managed_by_environment"]:
+        model = get_user_setting(db, user_id, "llm_model", model) or model
+        reasoning_effort = get_user_setting(db, user_id, "llm_reasoning_effort", reasoning_effort) or reasoning_effort
+    return config["base_url"], config["api_key"], model, reasoning_effort
 
 
 def _extract_text_content(data: dict[str, Any]) -> str:
@@ -120,8 +141,8 @@ def _extract_text_content(data: dict[str, Any]) -> str:
     return str(content or "").strip()
 
 
-async def _llm_request(db: Session, body: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    base_url, api_key, model, reasoning_effort = _llm_config(db)
+async def _llm_request(db: Session, user_id: int | None, body: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    base_url, api_key, model, reasoning_effort = _llm_config(db, user_id)
     url = f"{base_url}/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {"model": model, **body}
@@ -152,11 +173,13 @@ async def _llm_request(db: Session, body: dict[str, Any]) -> tuple[dict[str, Any
 
 async def call_llm(
     db: Session,
+    user_id: int,
     system_prompt: str,
     user_payload: dict[str, Any],
     instruction: str | None = None,
     conversation: list[dict[str, str]] | None = None,
 ) -> tuple[dict[str, Any], str]:
+    ensure_ai_enabled(db)
     messages = [
         {"role": "system", "content": system_prompt},
         {
@@ -170,6 +193,7 @@ async def call_llm(
         messages.append({"role": "user", "content": instruction})
     _, content = await _llm_request(
         db,
+        user_id,
         {
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
@@ -181,11 +205,13 @@ async def call_llm(
 
 async def call_llm_text(
     db: Session,
+    user_id: int,
     system_prompt: str | None,
     instruction: str,
     conversation: list[dict[str, str]] | None = None,
     context: dict[str, Any] | None = None,
 ) -> str:
+    ensure_ai_enabled(db)
     messages: list[dict[str, str]] = []
     if system_prompt and system_prompt.strip():
         messages.append({"role": "system", "content": system_prompt})
@@ -195,6 +221,7 @@ async def call_llm_text(
     messages.append({"role": "user", "content": instruction})
     _, content = await _llm_request(
         db,
+        user_id,
         {
             "temperature": 0.55,
             "messages": messages,
@@ -259,8 +286,9 @@ def normalize_plan_payload(payload: dict[str, Any], schedule_requested: bool) ->
     return normalized
 
 
-def create_draft(db: Session, kind: str, snapshot: dict[str, Any], payload: dict[str, Any], raw_response: str | None) -> AiDraft:
+def create_draft(db: Session, user_id: int, kind: str, snapshot: dict[str, Any], payload: dict[str, Any], raw_response: str | None) -> AiDraft:
     draft = AiDraft(
+        user_id=user_id,
         kind=kind,
         input_snapshot=json.dumps(snapshot, ensure_ascii=False),
         payload=json.dumps(payload, ensure_ascii=False),
@@ -312,18 +340,22 @@ def serialize_chat_conversation(conversation: AiConversation) -> dict[str, Any]:
     }
 
 
-def list_chat_conversations(db: Session) -> list[dict[str, Any]]:
+def list_chat_conversations(db: Session, user_id: int) -> list[dict[str, Any]]:
     conversations = (
         db.query(AiConversation)
-        .filter(AiConversation.mode == "chat")
+        .filter(AiConversation.user_id == user_id, AiConversation.mode == "chat")
         .order_by(AiConversation.updated_at.desc(), AiConversation.id.desc())
         .all()
     )
     return [serialize_chat_conversation(conversation) for conversation in conversations]
 
 
-def get_chat_conversation_payload(db: Session, conversation_id: int) -> dict[str, Any]:
-    conversation = db.get(AiConversation, conversation_id)
+def get_chat_conversation_payload(db: Session, user_id: int, conversation_id: int) -> dict[str, Any]:
+    conversation = (
+        db.query(AiConversation)
+        .filter(AiConversation.id == conversation_id, AiConversation.user_id == user_id)
+        .first()
+    )
     if conversation is None or conversation.mode != "chat":
         raise HTTPException(status_code=404, detail="Chat conversation not found.")
     return {
@@ -332,8 +364,12 @@ def get_chat_conversation_payload(db: Session, conversation_id: int) -> dict[str
     }
 
 
-def delete_chat_conversation(db: Session, conversation_id: int) -> None:
-    conversation = db.get(AiConversation, conversation_id)
+def delete_chat_conversation(db: Session, user_id: int, conversation_id: int) -> None:
+    conversation = (
+        db.query(AiConversation)
+        .filter(AiConversation.id == conversation_id, AiConversation.user_id == user_id)
+        .first()
+    )
     if conversation is None or conversation.mode != "chat":
         raise HTTPException(status_code=404, detail="Chat conversation not found.")
     db.delete(conversation)
@@ -342,15 +378,22 @@ def delete_chat_conversation(db: Session, conversation_id: int) -> None:
 
 def save_chat_exchange(
     db: Session,
+    user_id: int,
     user_message: str,
     assistant_message: str,
     conversation_id: int | None = None,
 ) -> dict[str, Any]:
-    conversation = db.get(AiConversation, conversation_id) if conversation_id else None
+    conversation = (
+        db.query(AiConversation)
+        .filter(AiConversation.id == conversation_id, AiConversation.user_id == user_id)
+        .first()
+        if conversation_id
+        else None
+    )
     if conversation_id and (conversation is None or conversation.mode != "chat"):
         raise HTTPException(status_code=404, detail="Chat conversation not found.")
     if conversation is None:
-        conversation = AiConversation(mode="chat", title=_chat_title_from_message(user_message))
+        conversation = AiConversation(user_id=user_id, mode="chat", title=_chat_title_from_message(user_message))
         db.add(conversation)
         db.flush()
     elif len(conversation.messages) <= 1 and conversation.title == "New chat":
@@ -360,11 +403,19 @@ def save_chat_exchange(
     db.add(AiMessage(conversation_id=conversation.id, role="assistant", content=assistant_message))
     db.commit()
     db.refresh(conversation)
-    return get_chat_conversation_payload(db, conversation.id)
+    return get_chat_conversation_payload(db, user_id, conversation.id)
 
 
-def apply_plan_draft(db: Session, draft_id: int) -> dict[str, int]:
-    draft = db.get(AiDraft, draft_id)
+def _user_subject_map(db: Session, user_id: int) -> dict[int, Subject]:
+    return {subject.id: subject for subject in db.query(Subject).filter(Subject.user_id == user_id).all()}
+
+
+def _user_task_map(db: Session, user_id: int) -> dict[int, Task]:
+    return {task.id: task for task in db.query(Task).filter(Task.user_id == user_id).all()}
+
+
+def apply_plan_draft(db: Session, user_id: int, draft_id: int) -> dict[str, int]:
+    draft = db.query(AiDraft).filter(AiDraft.id == draft_id, AiDraft.user_id == user_id).first()
     if draft is None:
         raise HTTPException(status_code=404, detail="Draft not found.")
     if draft.kind != "plan":
@@ -372,6 +423,8 @@ def apply_plan_draft(db: Session, draft_id: int) -> dict[str, int]:
     if draft.status != "pending":
         raise HTTPException(status_code=400, detail="Draft has already been handled.")
 
+    subjects = _user_subject_map(db, user_id)
+    tasks_by_id = _user_task_map(db, user_id)
     payload = json.loads(draft.payload)
     created_tasks = 0
     created_events = 0
@@ -379,9 +432,13 @@ def apply_plan_draft(db: Session, draft_id: int) -> dict[str, int]:
         title = str(item.get("title") or "").strip()
         if not title:
             continue
+        subject_id = item.get("subject_id")
+        if subject_id is not None and int(subject_id) not in subjects:
+            subject_id = None
         task = Task(
+            user_id=user_id,
             title=title,
-            subject_id=item.get("subject_id"),
+            subject_id=subject_id,
             priority=item.get("priority") if item.get("priority") in {"low", "medium", "high"} else "medium",
             status="todo",
             estimated_minutes=item.get("estimated_minutes"),
@@ -396,10 +453,17 @@ def apply_plan_draft(db: Session, draft_id: int) -> dict[str, int]:
         if not title or not start_at or not end_at:
             continue
         try:
+            subject_id = item.get("subject_id")
+            task_id = item.get("task_id")
+            if subject_id is not None and int(subject_id) not in subjects:
+                subject_id = None
+            if task_id is not None and int(task_id) not in tasks_by_id:
+                task_id = None
             event = ScheduleEvent(
+                user_id=user_id,
                 title=title,
-                subject_id=item.get("subject_id"),
-                task_id=item.get("task_id"),
+                subject_id=subject_id,
+                task_id=task_id,
                 start_at=_parse_dt(start_at),
                 end_at=_parse_dt(end_at),
                 source="ai",
@@ -433,6 +497,7 @@ def _coerce_quote_payload(payload: dict[str, Any]) -> dict[str, str]:
 
 
 async def get_daily_quote(db: Session, target_date: date | None = None) -> dict[str, Any]:
+    config = get_site_ai_config(db)
     target_date = target_date or now_local().date()
     cached_date = get_setting(db, "daily_quote_date", "")
     cached_payload = get_setting(db, "daily_quote_payload", "")
@@ -444,10 +509,14 @@ async def get_daily_quote(db: Session, target_date: date | None = None) -> dict[
         if isinstance(cached, dict) and cached.get("quote") and cached.get("author"):
             return {**cached, "cached": True}
 
+    if not config["enabled"]:
+        raise HTTPException(status_code=503, detail="AI features are disabled for this deployment.")
+
     payload, _ = await call_llm(
         db,
-        DAILY_QUOTE_SYSTEM_PROMPT,
-        {"date": target_date.isoformat(), "locale": "en"},
+        user_id=0,
+        system_prompt=DAILY_QUOTE_SYSTEM_PROMPT,
+        user_payload={"date": target_date.isoformat(), "locale": "en"},
         instruction="Return one concise, uplifting English quote suitable for a study dashboard.",
     )
     quote_payload = _coerce_quote_payload(payload)

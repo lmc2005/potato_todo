@@ -26,9 +26,12 @@
   {% elif active_page == "assistant" %}
     {% set shell_title = "GPT Assistant" %}
     {% set shell_subtitle = "Plan study blocks conversationally, review structured drafts, and apply them to tasks and calendar." %}
+  {% elif active_page == "rooms" %}
+    {% set shell_title = "Study Rooms" %}
+    {% set shell_subtitle = "Join shared focus rooms by code and compare today's progress in near real time." %}
   {% else %}
-    {% set shell_title = "Local System Settings" %}
-    {% set shell_subtitle = "Control Pomodoro defaults, backups, and local data operations." %}
+    {% set shell_title = "Workspace Settings" %}
+    {% set shell_subtitle = "Control personal preferences, backup scope, and deployment-level service status." %}
   {% endif %}
 
   <div class="scene-backdrop" aria-hidden="true">
@@ -56,13 +59,13 @@
           <span class="brand-mark"></span>
           <span class="brand-copy">
             <strong>POTATO-TODO</strong>
-            <small>Local study workspace</small>
+            <small>Shared study workspace</small>
           </span>
         </a>
 
         <div class="rail-mini-note">
-          <span class="intel-label">Private workspace</span>
-          <small>Focus, tasks, schedule, analytics, and GPT in one local flow.</small>
+          <span class="intel-label">Account workspace</span>
+          <small>Focus, tasks, schedule, analytics, GPT, and study rooms in one flow.</small>
         </div>
 
         <nav class="rail-nav" aria-label="Primary navigation">
@@ -101,6 +104,7 @@
               <small>Insights</small>
             </span>
           </a>
+          {% if ai_enabled %}
           <a class="{{ 'active' if active_page == 'assistant' else '' }}" href="/assistant">
             <span class="nav-index">05</span>
             <span class="nav-copy">
@@ -108,8 +112,16 @@
               <small>Planner</small>
             </span>
           </a>
-          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">
+          {% endif %}
+          <a class="{{ 'active' if active_page == 'rooms' else '' }}" href="/rooms">
             <span class="nav-index">06</span>
+            <span class="nav-copy">
+              <strong>Rooms</strong>
+              <small>Study room</small>
+            </span>
+          </a>
+          <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">
+            <span class="nav-index">07</span>
             <span class="nav-copy">
               <strong>Settings</strong>
               <small>System</small>
@@ -120,8 +132,11 @@
         <div class="rail-footer">
           <div class="rail-status-chip">
             <span class="status-dot"></span>
-            <span>Local-first active</span>
+            <span>{{ current_user_label }}</span>
           </div>
+          <form action="/logout" method="post" class="rail-logout-form">
+            <button class="secondary-button rail-logout-button" type="submit">Log Out</button>
+          </form>
         </div>
       </div>
     </aside>
@@ -144,7 +159,7 @@
             <p class="topbar-subtitle">{{ shell_subtitle }}</p>
           </div>
           <div class="topbar-meta">
-            <span class="topbar-pill">Private mode</span>
+            <span class="topbar-pill">{{ current_user.email }}</span>
             <span class="topbar-pill">Local clock</span>
             <span class="topbar-pill">{{ today }}</span>
           </div>

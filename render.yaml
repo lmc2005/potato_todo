@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: potato-todo
+    runtime: python
+    plan: free
+    autoDeploy: false
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: STUDY_DB_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: APP_BASE_URL
+        sync: false
+      - key: AI_ENABLED
+        value: "false"
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4
+      - key: OPENAI_REASONING_EFFORT
+        value: medium

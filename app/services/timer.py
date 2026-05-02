@@ -5,18 +5,42 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models import StudySession, Subject, TimerState, now_local
+from app.models import ScheduleEvent, StudySession, Subject, Task, TimerState, now_local
 from app.schemas import PomodoroStartIn, TimerStartIn
 
 
-def get_active_timer(db: Session) -> TimerState | None:
-    return db.query(TimerState).order_by(TimerState.id.asc()).first()
+def get_active_timer(db: Session, user_id: int) -> TimerState | None:
+    return (
+        db.query(TimerState)
+        .filter(TimerState.user_id == user_id)
+        .order_by(TimerState.id.asc())
+        .first()
+    )
 
 
-def _require_subject(db: Session, subject_id: int) -> None:
-    subject = db.get(Subject, subject_id)
-    if subject is None or subject.archived:
+def _require_subject(db: Session, user_id: int, subject_id: int) -> None:
+    subject = (
+        db.query(Subject)
+        .filter(Subject.id == subject_id, Subject.user_id == user_id, Subject.archived.is_(False))
+        .first()
+    )
+    if subject is None:
         raise HTTPException(status_code=404, detail="Subject not found.")
+
+
+def _validate_optional_links(db: Session, user_id: int, task_id: int | None, schedule_event_id: int | None) -> None:
+    if task_id is not None:
+        task = db.query(Task).filter(Task.id == task_id, Task.user_id == user_id).first()
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found.")
+    if schedule_event_id is not None:
+        event = (
+            db.query(ScheduleEvent)
+            .filter(ScheduleEvent.id == schedule_event_id, ScheduleEvent.user_id == user_id)
+            .first()
+        )
+        if event is None:
+            raise HTTPException(status_code=404, detail="Schedule event not found.")
 
 
 def _focus_seconds(timer: TimerState, end_at: datetime) -> int:
@@ -44,6 +68,7 @@ def _record_session(
     if focus_seconds <= 0:
         return None
     session = StudySession(
+        user_id=timer.user_id,
         subject_id=timer.subject_id,
         task_id=timer.task_id,
         schedule_event_id=timer.schedule_event_id,
@@ -84,16 +109,18 @@ def _timer_payload(timer: TimerState, completed: str | None = None) -> dict:
     }
 
 
-def start_timer(db: Session, data: TimerStartIn) -> dict:
-    if get_active_timer(db):
+def start_timer(db: Session, user_id: int, data: TimerStartIn) -> dict:
+    if get_active_timer(db, user_id):
         raise HTTPException(status_code=409, detail="A timer is already running.")
-    _require_subject(db, data.subject_id)
+    _require_subject(db, user_id, data.subject_id)
+    _validate_optional_links(db, user_id, data.task_id, data.schedule_event_id)
     if data.mode == "count_down" and not data.duration_minutes:
         raise HTTPException(status_code=400, detail="Countdown duration is required.")
 
     started_at = now_local()
     countdown_seconds = data.duration_minutes * 60 if data.duration_minutes else None
     timer = TimerState(
+        user_id=user_id,
         mode=data.mode,
         subject_id=data.subject_id,
         task_id=data.task_id,
@@ -108,12 +135,14 @@ def start_timer(db: Session, data: TimerStartIn) -> dict:
     return _timer_payload(timer)
 
 
-def start_pomodoro(db: Session, data: PomodoroStartIn) -> dict:
-    if get_active_timer(db):
+def start_pomodoro(db: Session, user_id: int, data: PomodoroStartIn) -> dict:
+    if get_active_timer(db, user_id):
         raise HTTPException(status_code=409, detail="A timer is already running.")
-    _require_subject(db, data.subject_id)
+    _require_subject(db, user_id, data.subject_id)
+    _validate_optional_links(db, user_id, data.task_id, data.schedule_event_id)
     started_at = now_local()
     timer = TimerState(
+        user_id=user_id,
         mode="pomodoro",
         subject_id=data.subject_id,
         task_id=data.task_id,
@@ -134,8 +163,8 @@ def start_pomodoro(db: Session, data: PomodoroStartIn) -> dict:
     return _timer_payload(timer)
 
 
-def pause_timer(db: Session) -> dict:
-    timer = get_active_timer(db)
+def pause_timer(db: Session, user_id: int) -> dict:
+    timer = get_active_timer(db, user_id)
     if timer is None:
         raise HTTPException(status_code=404, detail="No active timer.")
     if not timer.is_paused:
@@ -146,8 +175,8 @@ def pause_timer(db: Session) -> dict:
     return _timer_payload(timer)
 
 
-def resume_timer(db: Session) -> dict:
-    timer = get_active_timer(db)
+def resume_timer(db: Session, user_id: int) -> dict:
+    timer = get_active_timer(db, user_id)
     if timer is None:
         raise HTTPException(status_code=404, detail="No active timer.")
     if timer.is_paused and timer.paused_at:
@@ -163,8 +192,13 @@ def resume_timer(db: Session) -> dict:
     return _timer_payload(timer)
 
 
-def stop_timer(db: Session, reason: str = "manual_stop", adjusted_focus_minutes: int | None = None) -> dict:
-    timer = get_active_timer(db)
+def stop_timer(
+    db: Session,
+    user_id: int,
+    reason: str = "manual_stop",
+    adjusted_focus_minutes: int | None = None,
+) -> dict:
+    timer = get_active_timer(db, user_id)
     if timer is None:
         raise HTTPException(status_code=404, detail="No active timer.")
     end_at = timer.paused_at if timer.is_paused and timer.paused_at else now_local()
@@ -217,8 +251,8 @@ def _advance_pomodoro(db: Session, timer: TimerState, now: datetime) -> dict:
     return _timer_payload(timer, "break_complete")
 
 
-def current_timer(db: Session) -> dict:
-    timer = get_active_timer(db)
+def current_timer(db: Session, user_id: int) -> dict:
+    timer = get_active_timer(db, user_id)
     if timer is None:
         return {"active": False}
     if timer.is_paused:
@@ -239,10 +273,10 @@ def current_timer(db: Session) -> dict:
     return _timer_payload(timer)
 
 
-def skip_pomodoro(db: Session) -> dict:
-    timer = get_active_timer(db)
+def skip_pomodoro(db: Session, user_id: int) -> dict:
+    timer = get_active_timer(db, user_id)
     if timer is None or timer.mode != "pomodoro":
         raise HTTPException(status_code=404, detail="No active Pomodoro timer.")
     timer.countdown_end_at = now_local()
     db.commit()
-    return current_timer(db)
+    return current_timer(db, user_id)

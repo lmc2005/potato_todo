@@ -125,6 +125,16 @@ class AiChatSendIn(BaseModel):
     message: str = Field(min_length=1, max_length=20000)
 
 
+class RoomCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    member_limit: int = Field(default=20, ge=2, le=20)
+    timezone: str = "Asia/Shanghai"
+
+
+class RoomJoinIn(BaseModel):
+    join_code: str = Field(min_length=4, max_length=16)
+
+
 class AiDraftOut(BaseModel):
     id: int
     kind: str

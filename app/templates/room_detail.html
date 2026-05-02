@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="room-detail-stage" data-room-id="{{ room.id }}">
+  <div class="room-detail-layout">
+    <article class="glass-panel room-detail-hero" data-tilt>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Room Overview</p>
+          <h1 id="room-detail-name">{{ room.name }}</h1>
+        </div>
+        <span id="room-connection-status" class="chip">Connecting...</span>
+      </div>
+
+      <div class="room-meta-grid">
+        <div class="glass-inset room-meta-card">
+          <span class="meta-label">Code</span>
+          <strong id="room-detail-code">{{ room.join_code }}</strong>
+        </div>
+        <div class="glass-inset room-meta-card">
+          <span class="meta-label">Status</span>
+          <strong id="room-detail-status">{{ room.status }}</strong>
+        </div>
+        <div class="glass-inset room-meta-card">
+          <span class="meta-label">Members</span>
+          <strong id="room-detail-member-count">{{ room.member_count }}</strong>
+        </div>
+        <div class="glass-inset room-meta-card">
+          <span class="meta-label">Timezone</span>
+          <strong id="room-detail-timezone">{{ room.timezone }}</strong>
+        </div>
+      </div>
+
+      <div class="button-row room-detail-actions">
+        <button id="room-copy-code" class="secondary-button" type="button">Copy Code</button>
+        {% if room.is_owner %}
+        <button id="room-reset-code" class="secondary-button" type="button">Reset Code</button>
+        <button id="room-close" class="danger-button" type="button">Close Room</button>
+        {% else %}
+        <button id="room-leave" class="danger-button" type="button">Leave Room</button>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="glass-panel room-scoreboard-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Today Leaderboard</p>
+          <h2>Focus time first, then completion</h2>
+        </div>
+        <span id="room-active-focus-count" class="chip">0 focusing</span>
+      </div>
+      <div id="room-members-board" class="room-members-board empty-state">Loading room snapshot...</div>
+    </article>
+  </div>
+</section>
+
+<script>
+  window.ROOM_BOOT = {{ room | tojson }};
+</script>
+{% endblock %}

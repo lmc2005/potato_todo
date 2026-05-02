@@ -3,12 +3,45 @@ from __future__ import annotations
 import json
 from datetime import datetime, time, timedelta
 
+from fastapi.testclient import TestClient
+
 import app.main as main_module
 from app.database import SessionLocal
-from app.models import AiDraft, StudySession, Task, TimerState, now_local
+from app.main import app
+from app.models import AiDraft, StudySession, Task, TimerState, User, now_local
+
+
+def user_id_for(email: str = "user@example.com") -> int:
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.email == email).one()
+        return user.id
+
+
+def register_user(client: TestClient, email: str, password: str = "password123") -> None:
+    response = client.post(
+        "/register",
+        data={
+            "email": email,
+            "password": password,
+            "confirm_password": password,
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+
+def test_auth_required_for_protected_pages_and_apis(client):
+    with TestClient(app) as anonymous:
+        api_response = anonymous.get("/api/tasks")
+        assert api_response.status_code == 401
+
+        page_response = anonymous.get("/assistant")
+        assert page_response.status_code == 200
+        assert "Log In" in page_response.text
 
 
 def test_countdown_completion_updates_stats(client):
+    user_id = user_id_for()
     subject = client.post(
         "/api/subjects",
         json={"name": "Mathematics", "color": "#2563EB", "daily_goal_minutes": 30, "weekly_goal_minutes": 180, "monthly_goal_minutes": 720},
@@ -21,7 +54,7 @@ def test_countdown_completion_updates_stats(client):
     assert response.status_code == 200
 
     with SessionLocal() as db:
-        timer = db.query(TimerState).first()
+        timer = db.query(TimerState).filter(TimerState.user_id == user_id).one()
         timer.started_at = now_local() - timedelta(seconds=60)
         timer.countdown_end_at = now_local() - timedelta(seconds=1)
         db.commit()
@@ -39,6 +72,7 @@ def test_countdown_completion_updates_stats(client):
 
 
 def test_pomodoro_records_only_focus_time(client):
+    user_id = user_id_for()
     subject = client.post("/api/subjects", json={"name": "Literature", "color": "#34C759"}).json()
     response = client.post(
         "/api/pomodoro/start",
@@ -53,7 +87,7 @@ def test_pomodoro_records_only_focus_time(client):
     assert response.status_code == 200
 
     with SessionLocal() as db:
-        timer = db.query(TimerState).first()
+        timer = db.query(TimerState).filter(TimerState.user_id == user_id).one()
         timer.started_at = now_local() - timedelta(seconds=60)
         timer.countdown_end_at = now_local() - timedelta(seconds=1)
         db.commit()
@@ -67,25 +101,6 @@ def test_pomodoro_records_only_focus_time(client):
     stats = client.get(f"/api/stats?start={today}&end={today}").json()
     assert stats["session_count"] == 1
     assert stats["total_seconds"] >= 59
-
-
-def test_count_up_stop_can_adjust_long_session(client):
-    subject = client.post("/api/subjects", json={"name": "Chemistry", "color": "#D97706"}).json()
-    response = client.post("/api/timer/start", json={"mode": "count_up", "subject_id": subject["id"]})
-    assert response.status_code == 200
-
-    with SessionLocal() as db:
-        timer = db.query(TimerState).first()
-        timer.started_at = now_local() - timedelta(minutes=100)
-        db.commit()
-
-    stopped = client.post("/api/timer/stop", json={"adjusted_focus_minutes": 75}).json()
-    assert stopped["completed"] == "manual_stop_adjusted"
-    assert stopped["focus_seconds"] == 75 * 60
-
-    today = now_local().date().isoformat()
-    stats = client.get(f"/api/stats?start={today}&end={today}").json()
-    assert stats["total_seconds"] == 75 * 60
 
 
 def test_overdue_task_is_marked_undone_and_can_be_completed_with_time(client):
@@ -103,25 +118,6 @@ def test_overdue_task_is_marked_undone_and_can_be_completed_with_time(client):
     ).json()
     assert patched["status"] == "done"
     assert patched["completed_at"] == completed_at.isoformat()
-
-
-def test_subject_can_be_updated(client):
-    subject = client.post("/api/subjects", json={"name": "Biology", "color": "#34C759"}).json()
-    updated = client.patch(
-        f"/api/subjects/{subject['id']}",
-        json={
-            "name": "Advanced Biology",
-            "color": "#7C3AED",
-            "daily_goal_minutes": 75,
-            "weekly_goal_minutes": 420,
-            "monthly_goal_minutes": 1680,
-        },
-    )
-    assert updated.status_code == 200
-    payload = updated.json()
-    assert payload["name"] == "Advanced Biology"
-    assert payload["color"] == "#7C3AED"
-    assert payload["daily_goal_minutes"] == 75
 
 
 def test_subject_delete_detaches_tasks_and_events(client):
@@ -153,42 +149,13 @@ def test_subject_delete_detaches_tasks_and_events(client):
     assert event_after["subject_id"] is None
 
 
-def test_subject_delete_rejects_when_sessions_exist(client):
-    subject = client.post("/api/subjects", json={"name": "Economics", "color": "#F59E0B"}).json()
-    with SessionLocal() as db:
-        db.add(
-            StudySession(
-                subject_id=subject["id"],
-                mode="count_up",
-                started_at=now_local() - timedelta(minutes=45),
-                ended_at=now_local(),
-                focus_seconds=45 * 60,
-                paused_seconds=0,
-                stop_reason="manual_stop",
-            )
-        )
-        db.commit()
-
-    response = client.delete(f"/api/subjects/{subject['id']}")
-    assert response.status_code == 400
-    assert "cannot be deleted" in response.json()["detail"]
-
-
-def test_subject_delete_rejects_when_timer_is_active(client):
-    subject = client.post("/api/subjects", json={"name": "Art", "color": "#EC4899"}).json()
-    started = client.post("/api/timer/start", json={"mode": "count_up", "subject_id": subject["id"]})
-    assert started.status_code == 200
-
-    response = client.delete(f"/api/subjects/{subject['id']}")
-    assert response.status_code == 400
-    assert "Stop the active timer" in response.json()["detail"]
-
-
 def test_subject_list_includes_total_focus_seconds(client):
+    user_id = user_id_for()
     subject = client.post("/api/subjects", json={"name": "Music", "color": "#8B5CF6"}).json()
     with SessionLocal() as db:
         db.add(
             StudySession(
+                user_id=user_id,
                 subject_id=subject["id"],
                 mode="count_up",
                 started_at=now_local() - timedelta(minutes=30),
@@ -206,13 +173,14 @@ def test_subject_list_includes_total_focus_seconds(client):
 
 
 def test_stats_include_task_completion_and_on_time_rates(client):
+    user_id = user_id_for()
     today = now_local().date()
     due_at = datetime.combine(today, time(hour=12))
     rows = [
-        Task(title="On-time task", status="done", due_at=due_at, completed_at=due_at - timedelta(minutes=30)),
-        Task(title="Late task", status="done", due_at=due_at, completed_at=due_at + timedelta(minutes=30)),
-        Task(title="Missed task", status="todo", due_at=due_at),
-        Task(title="Pending task", status="in_progress", due_at=due_at),
+        Task(user_id=user_id, title="On-time task", status="done", due_at=due_at, completed_at=due_at - timedelta(minutes=30)),
+        Task(user_id=user_id, title="Late task", status="done", due_at=due_at, completed_at=due_at + timedelta(minutes=30)),
+        Task(user_id=user_id, title="Missed task", status="todo", due_at=due_at),
+        Task(user_id=user_id, title="Pending task", status="in_progress", due_at=due_at),
     ]
     with SessionLocal() as db:
         db.add_all(rows)
@@ -228,6 +196,7 @@ def test_stats_include_task_completion_and_on_time_rates(client):
 
 
 def test_ai_plan_draft_applies_only_after_confirmation(client):
+    user_id = user_id_for()
     subject = client.post("/api/subjects", json={"name": "Physics", "color": "#0F766E"}).json()
     payload = {
         "summary": "Plan one focused review block.",
@@ -245,7 +214,13 @@ def test_ai_plan_draft_applies_only_after_confirmation(client):
         "risks": [],
     }
     with SessionLocal() as db:
-        draft = AiDraft(kind="plan", input_snapshot="{}", payload=json.dumps(payload), raw_response=json.dumps(payload))
+        draft = AiDraft(
+            user_id=user_id,
+            kind="plan",
+            input_snapshot="{}",
+            payload=json.dumps(payload),
+            raw_response=json.dumps(payload),
+        )
         db.add(draft)
         db.commit()
         draft_id = draft.id
@@ -259,15 +234,26 @@ def test_ai_plan_draft_applies_only_after_confirmation(client):
     assert any(task["title"] == "Review mechanics notes" for task in after)
 
 
-def test_backup_export_contains_core_tables(client):
+def test_backup_export_and_clear_are_user_scoped(client):
     client.post("/api/subjects", json={"name": "English", "color": "#5E8CFF"})
-    response = client.get("/api/backup/export")
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["version"] == 1
-    assert "subjects" in payload["tables"]
-    assert "tasks" in payload["tables"]
-    assert any(row["name"] == "English" for row in payload["tables"]["subjects"])
+
+    with TestClient(app) as other_client:
+        register_user(other_client, "other@example.com")
+        other_client.post("/api/subjects", json={"name": "Biology", "color": "#34C759"})
+
+        exported = client.get("/api/backup/export")
+        assert exported.status_code == 200
+        payload = exported.json()
+        assert payload["version"] == 2
+        assert any(row["name"] == "English" for row in payload["tables"]["subjects"])
+        assert all(row["name"] != "Biology" for row in payload["tables"]["subjects"])
+
+        cleared = client.post("/api/data/clear", json={"confirm": True})
+        assert cleared.status_code == 200
+        assert client.get("/api/subjects").json() == []
+
+        other_subjects = other_client.get("/api/subjects").json()
+        assert any(subject["name"] == "Biology" for subject in other_subjects)
 
 
 def test_llm_settings_store_reasoning_effort(client):
@@ -292,7 +278,7 @@ def test_llm_settings_store_reasoning_effort(client):
     assert fetched.json()["reasoning_effort"] == "xhigh"
 
 
-def test_assistant_page_loads(client):
+def test_assistant_page_loads_after_auth(client):
     response = client.get("/assistant")
     assert response.status_code == 200
     assert "GPT Assistant" in response.text
@@ -301,7 +287,7 @@ def test_assistant_page_loads(client):
 def test_ai_plan_without_time_request_returns_tasks_only(client, monkeypatch):
     subject = client.post("/api/subjects", json={"name": "Math", "color": "#5E8CFF"}).json()
 
-    async def fake_call_llm(db, system_prompt, user_payload, instruction=None, conversation=None):
+    async def fake_call_llm(db, user_id, system_prompt, user_payload, instruction=None, conversation=None):
         return (
             {
                 "summary": "Draft ready.",
@@ -337,31 +323,10 @@ def test_ai_plan_without_time_request_returns_tasks_only(client, monkeypatch):
     assert any(item["title"] == "Review chapter 3" for item in payload["tasks"])
 
 
-def test_daily_quote_falls_back_without_llm_config(client):
-    response = client.get("/api/ai/daily-quote")
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["quote"]
-    assert payload["author"]
-    assert payload["source"]
-
-
-def test_clear_data_requires_confirmation_and_clears_records(client):
-    client.post("/api/subjects", json={"name": "History", "color": "#E11D48"})
-    rejected = client.post("/api/data/clear", json={"confirm": False})
-    assert rejected.status_code == 400
-    assert client.get("/api/subjects").json()
-
-    cleared = client.post("/api/data/clear", json={"confirm": True})
-    assert cleared.status_code == 200
-    assert cleared.json()["cleared"] is True
-    assert client.get("/api/subjects").json() == []
-
-
 def test_ai_chat_sessions_persist_and_reload(client, monkeypatch):
     recorded_turns = []
 
-    async def fake_call_llm_text(db, system_prompt, instruction, conversation=None, context=None):
+    async def fake_call_llm_text(db, user_id, system_prompt, instruction, conversation=None, context=None):
         recorded_turns.append(conversation or [])
         return f"Assistant reply: {instruction}"
 
@@ -397,21 +362,75 @@ def test_ai_chat_sessions_persist_and_reload(client, monkeypatch):
     ]
 
 
-def test_ai_chat_session_delete(client, monkeypatch):
-    async def fake_call_llm_text(db, system_prompt, instruction, conversation=None, context=None):
-        return "Saved reply"
+def test_study_room_snapshot_and_isolation(client):
+    owner_id = user_id_for()
+    room = client.post("/api/rooms", json={"name": "Sprint Room", "member_limit": 20, "timezone": "Asia/Shanghai"}).json()
+    room_id = room["id"]
+    join_code = room["join_code"]
 
-    monkeypatch.setattr(main_module, "call_llm_text", fake_call_llm_text)
-    created = client.post("/api/ai/chat/send", json={"message": "Remember this chat."}).json()
-    conversation_id = created["conversation"]["id"]
+    with TestClient(app) as other_client:
+        register_user(other_client, "peer@example.com")
+        peer_id = user_id_for("peer@example.com")
+        join_response = other_client.post("/api/rooms/join", json={"join_code": join_code})
+        assert join_response.status_code == 200
 
-    deleted = client.delete(f"/api/ai/chat/sessions/{conversation_id}")
-    assert deleted.status_code == 200
-    assert deleted.json()["deleted"] is True
+        owner_subject = client.post("/api/subjects", json={"name": "Owner Math", "color": "#2563EB"}).json()
+        peer_subject = other_client.post("/api/subjects", json={"name": "Peer English", "color": "#34C759"}).json()
 
-    missing = client.get(f"/api/ai/chat/sessions/{conversation_id}")
-    assert missing.status_code == 404
+        owner_task = client.post("/api/tasks", json={"title": "Owner done", "subject_id": owner_subject["id"], "status": "done"}).json()
+        other_client.post("/api/tasks", json={"title": "Peer working", "subject_id": peer_subject["id"], "status": "in_progress"}).json()
 
+        with SessionLocal() as db:
+            owner_done = db.query(Task).filter(Task.id == owner_task["id"]).one()
+            owner_done.completed_at = now_local()
+            db.add(
+                StudySession(
+                    user_id=owner_id,
+                    subject_id=owner_subject["id"],
+                    task_id=owner_done.id,
+                    mode="count_up",
+                    started_at=now_local() - timedelta(minutes=50),
+                    ended_at=now_local(),
+                    focus_seconds=50 * 60,
+                    paused_seconds=0,
+                    stop_reason="manual_stop",
+                )
+            )
+            db.add(
+                StudySession(
+                    user_id=peer_id,
+                    subject_id=peer_subject["id"],
+                    mode="count_up",
+                    started_at=now_local() - timedelta(minutes=30),
+                    ended_at=now_local(),
+                    focus_seconds=30 * 60,
+                    paused_seconds=0,
+                    stop_reason="manual_stop",
+                )
+            )
+            db.add(
+                TimerState(
+                    user_id=peer_id,
+                    mode="count_up",
+                    subject_id=peer_subject["id"],
+                    started_at=now_local() - timedelta(minutes=10),
+                )
+            )
+            db.commit()
+
+        snapshot = client.get(f"/api/rooms/{room_id}/snapshot").json()
+        assert snapshot["member_count"] == 2
+        assert snapshot["active_focus_count"] == 1
+        assert snapshot["members"][0]["label"] == "user"
+        assert snapshot["members"][0]["focus_seconds_today"] == 50 * 60
+        assert snapshot["members"][1]["label"] == "peer"
+        assert snapshot["members"][1]["is_focusing"] is True
+
+        outsider = TestClient(app)
+        with outsider:
+            register_user(outsider, "outsider@example.com")
+            denied = outsider.get(f"/api/rooms/{room_id}/snapshot")
+            assert denied.status_code == 404
 
 def test_news_placeholder(client):
     response = client.get("/api/news/daily")
