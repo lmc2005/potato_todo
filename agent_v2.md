@@ -866,3 +866,20 @@ Release standard:
 - Maintenance notes: whenever the backend entrypoint, env contract, or deployment topology changes, `render.yaml`, `.env.example`, README deployment notes, and this doc section must be updated together in the same change
 - Future extension points: if frontend hosting is finalized on Cloudflare Pages or another static platform, add a companion deployment guide that pairs the chosen frontend route strategy with the existing Render API configuration
 - Known limitations / technical debt: the repo now accurately documents backend redeploy, but the frontend still expects either a same-origin `/api` proxy or a future explicit API base URL strategy before full public cutover
+
+### Entry 027
+
+- Feature name: Cloudflare Pages deployment bridge for the v2 frontend
+- Phase: M6
+- Purpose: make the rebuilt frontend deployable on Cloudflare Pages without rewriting every API call by introducing a same-origin `/api/*` proxy layer and a dedicated deployment guide
+- User value: the user can now publish the new frontend on Cloudflare using the current codebase structure, while preserving login, refresh cookie behavior, and SSE room streams behind a clean front-end origin
+- APIs: unchanged from the browser contract perspective; the frontend still calls `/api/v2/*`, while Pages Functions transparently forward those requests to the Render API origin
+- Request/response summary: no application payload changes; the new proxy forwards method, headers, body, and query string to the upstream Render API
+- Frameworks/libraries used: Cloudflare Pages, Cloudflare Pages Functions, existing React + Vite frontend, existing FastAPI v2 backend
+- Implementation notes: added the root-level `functions/api/[[path]].ts` proxy so Pages can forward all `/api/*` traffic to an `API_ORIGIN` environment variable; documented the required monorepo build settings, Pages environment variables, and custom-domain steps in `docs/cloudflare-pages-deploy.md`; and linked the new deployment path from the README
+- State transitions and edge cases: because the frontend continues to use relative `/api` paths, the proxy preserves the current auth and SSE flow without forcing a client-side API base URL refactor; the main deployment caveat is that the Pages project root must remain the repository root so both `packages/contracts` and the `functions/` directory are available
+- Performance strategy: the proxy adds no client-side animation or rendering overhead; it keeps the current low-load frontend intact while moving API path translation to Cloudflare’s edge
+- Test coverage: deployment behavior validated by code inspection against the existing relative-path fetch layer and SSE route usage; front-end production build continues to rely on the existing Vite build pipeline
+- Maintenance notes: if the frontend later migrates to an explicit `API_BASE_URL`, this proxy can be retired, but until then all Cloudflare deployment docs and env expectations must keep `API_ORIGIN` in sync with the active Render backend
+- Future extension points: custom headers, caching rules, or auth middleware can later be layered into the same `functions/` tree if the Pages deployment grows beyond simple proxying
+- Known limitations / technical debt: the Pages proxy currently assumes a single upstream API origin and does not yet add specialized error surfacing or branch-specific upstream routing

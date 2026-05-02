@@ -381,6 +381,37 @@ OPENAI_REASONING_EFFORT=medium
 - 第一版不做 Redis，不做多实例广播
 - 新版前端不再由这个 Python service 承载页面，需要单独部署前端静态站点
 
+## 部署前端到 Cloudflare Pages
+
+当前前端推荐部署到 Cloudflare Pages，并通过根目录 `functions/api/[[path]].ts` 把浏览器端 `/api/*` 请求代理到 Render API。
+
+关键配置如下：
+
+- Root directory：留空
+- Build command：
+
+```bash
+corepack enable && pnpm install --frozen-lockfile && pnpm --filter @potato/web build
+```
+
+- Build output directory：
+
+```text
+apps/web/dist
+```
+
+- Environment variables：
+
+```text
+NODE_VERSION=22
+PNPM_VERSION=10.12.1
+API_ORIGIN=https://your-render-service.onrender.com
+```
+
+完整操作步骤见：
+
+- [docs/cloudflare-pages-deploy.md](/Users/lin20051105/Desktop/potato_todo/docs/cloudflare-pages-deploy.md)
+
 ## 数据库说明
 
 - 本地开发可直接用 SQLite
