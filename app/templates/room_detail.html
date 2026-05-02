@@ -3,12 +3,17 @@
 <section class="room-detail-stage" data-room-id="{{ room.id }}">
   <div class="room-detail-layout">
     <article class="glass-panel room-detail-hero" data-tilt>
-      <div class="panel-heading">
-        <div>
+      <div class="room-hero-top">
+        <div class="room-heading-copy">
           <p class="eyebrow">Room Overview</p>
           <h1 id="room-detail-name">{{ room.name }}</h1>
+          <p class="room-panel-note">Shared ranking is based on today’s focus time first, then completed tasks, then late completions.</p>
         </div>
-        <span id="room-connection-status" class="chip">Connecting...</span>
+        <div class="glass-inset room-live-card">
+          <span class="meta-label">Connection</span>
+          <strong id="room-connection-status">Connecting...</strong>
+          <small>Leaderboard updates automatically when room activity changes.</small>
+        </div>
       </div>
 
       <div class="room-meta-grid">
@@ -42,13 +47,14 @@
     </article>
 
     <article class="glass-panel room-scoreboard-panel">
-      <div class="panel-heading">
-        <div>
+      <div class="panel-heading room-panel-heading">
+        <div class="room-heading-copy">
           <p class="eyebrow">Today Leaderboard</p>
           <h2>Focus time first, then completion</h2>
         </div>
         <span id="room-active-focus-count" class="chip">0 focusing</span>
       </div>
+      <p class="room-panel-note">Cards show each member’s live focus state, today’s totals, and up to five completed or in-progress task titles.</p>
       <div id="room-members-board" class="room-members-board empty-state">Loading room snapshot...</div>
     </article>
   </div>

@@ -3,13 +3,27 @@
 <section class="rooms-stage">
   <div class="rooms-layout">
     <article class="glass-panel rooms-hero" data-tilt>
-      <div class="panel-heading">
-        <div>
+      <div class="room-hero-top">
+        <div class="room-heading-copy">
           <p class="eyebrow">Study Rooms</p>
           <h1>Compete with today's real progress</h1>
+          <p class="lead-text">Create a persistent room, share the join code, and compare today's focus time, task completion, and active study status in near real time.</p>
+        </div>
+        <div class="rooms-hero-stats">
+          <div class="glass-inset rooms-hero-stat">
+            <span>Sync style</span>
+            <strong>Live room refresh</strong>
+          </div>
+          <div class="glass-inset rooms-hero-stat">
+            <span>Access</span>
+            <strong>Invite code only</strong>
+          </div>
+          <div class="glass-inset rooms-hero-stat">
+            <span>Ranking</span>
+            <strong>Focus first</strong>
+          </div>
         </div>
       </div>
-      <p class="lead-text">Create a persistent room, share the join code, and compare today's focus time, task completion, and active study status in near real time.</p>
 
       <div class="rooms-actions-grid">
         <form id="room-create-form" class="glass-inset room-form">
@@ -39,13 +53,14 @@
     </article>
 
     <article class="glass-panel rooms-list-panel">
-      <div class="panel-heading">
-        <div>
+      <div class="panel-heading room-panel-heading">
+        <div class="room-heading-copy">
           <p class="eyebrow">My Rooms</p>
           <h2>Joined and owned rooms</h2>
         </div>
         <span id="rooms-count" class="chip">0 rooms</span>
       </div>
+      <p class="room-panel-note">Each room keeps a persistent member list, a live leaderboard, and a shared view of today’s completed or active work.</p>
       <div id="rooms-list" class="rooms-list empty-state">No rooms yet. Create one or join with a room code.</div>
     </article>
   </div>

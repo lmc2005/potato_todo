@@ -3442,15 +3442,24 @@
     root.innerHTML = rooms.map((room) => `
       <article class="glass-inset room-list-card" data-room-id="${room.room_id}">
         <div class="room-list-head">
-          <div>
+          <div class="room-list-copy">
             <h3>${escapeHtml(room.name)}</h3>
             <p>${escapeHtml(room.role)} · ${escapeHtml(room.membership_status)} · ${escapeHtml(room.timezone)}</p>
           </div>
-          <span class="chip">${room.member_count}/${room.member_limit}</span>
+          <div class="room-list-capacity">
+            <span class="chip">${room.member_count}/${room.member_limit}</span>
+            <small>${escapeHtml(room.status)}</small>
+          </div>
         </div>
         <div class="room-list-meta">
-          <span>Code ${escapeHtml(room.join_code)}</span>
-          <span>${escapeHtml(room.status)}</span>
+          <div>
+            <span>Join code</span>
+            <strong>${escapeHtml(room.join_code)}</strong>
+          </div>
+          <div>
+            <span>Room state</span>
+            <strong>${escapeHtml(room.status)}</strong>
+          </div>
         </div>
         <a class="primary-button room-open-link" href="/rooms/${room.room_id}">Open Room</a>
       </article>
@@ -3494,7 +3503,7 @@
       return `
         <article class="glass-inset room-member-card ${member.is_focusing ? "is-focusing" : ""}">
           <div class="room-member-head">
-            <div>
+            <div class="room-member-copy">
               <span class="room-rank">#${member.rank || "--"}</span>
               <h3>${escapeHtml(member.label || emailAlias(member.email))}</h3>
               <p>${escapeHtml(member.role || "member")}</p>
