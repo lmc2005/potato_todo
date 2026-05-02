@@ -208,9 +208,16 @@ taskkill /PID <PID> /F
 | 变量名 | 用途 | 本地开发 | 公网部署 |
 |---|---|---:|---:|
 | `STUDY_DB_URL` | 数据库连接串 | 可选 | 必需 |
-| `SESSION_SECRET` | session 签名密钥 | 建议 | 必需 |
+| `APP_ENV` | 运行环境标识 | 建议 | 必需 |
+| `SESSION_SECRET` | 兼容旧 session 的签名密钥 | 建议 | 必需 |
+| `JWT_SECRET` | v2 JWT 签名密钥 | 建议 | 必需 |
+| `JWT_ALGORITHM` | JWT 算法 | `HS256` | 建议 |
+| `ACCESS_TOKEN_MINUTES` | access token 有效期 | 可选 | 建议 |
+| `REFRESH_TOKEN_DAYS` | refresh token 有效期 | 可选 | 建议 |
+| `REFRESH_COOKIE_NAME` | refresh cookie 名称 | 可选 | 建议 |
 | `COOKIE_SECURE` | 是否只允许 HTTPS cookie | `false` | `true` |
-| `APP_BASE_URL` | 站点地址 | 可选 | 建议 |
+| `COOKIE_DOMAIN` | cookie 共享域 | 可选 | 可选 |
+| `CORS_ORIGINS` | 允许的前端来源 | 可选 | 建议 |
 | `AI_ENABLED` | 是否启用 AI | 可选 | 建议 |
 | `OPENAI_BASE_URL` | 模型服务地址 | 可选 | 建议 |
 | `OPENAI_API_KEY` | 模型服务密钥 | 可选 | 建议 |
@@ -321,13 +328,19 @@ STUDY_DB_URL
 构建命令：
 
 ```bash
-pip install -r requirements.txt
+pip install -r apps/api/requirements.txt
 ```
 
 启动命令：
 
 ```bash
-alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+uvicorn apps.api.potato_api.app:app --host 0.0.0.0 --port $PORT
+```
+
+健康检查：
+
+```text
+/api/v2/health
 ```
 
 ### 3. 在 Render 设置环境变量
@@ -335,21 +348,38 @@ alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
 至少设置：
 
 ```text
+APP_ENV=production
 STUDY_DB_URL=...
 SESSION_SECRET=...
+JWT_SECRET=...
 COOKIE_SECURE=true
-APP_BASE_URL=https://your-service.onrender.com
-AI_ENABLED=true
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-5.4
+CORS_ORIGINS=https://your-frontend-domain
 ```
+
+推荐补齐：
+
+```text
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_MINUTES=30
+REFRESH_TOKEN_DAYS=14
+REFRESH_COOKIE_NAME=potato_refresh_token
+AI_ENABLED=false
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.4
+OPENAI_REASONING_EFFORT=medium
+```
+
+完整逐项填写说明见：
+
+- [docs/render-redeploy-v2.md](/Users/lin20051105/Desktop/potato_todo/docs/render-redeploy-v2.md)
 
 ### 4. 免费版注意点
 
 - Render Free 会 cold start
 - SSE 房间推送建议维持单实例
 - 第一版不做 Redis，不做多实例广播
+- 新版前端不再由这个 Python service 承载页面，需要单独部署前端静态站点
 
 ## 数据库说明
 

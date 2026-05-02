@@ -849,3 +849,20 @@ Release standard:
 - Maintenance notes: ticker tiles should keep strict center alignment and avoid decorative corner glyphs unless the user explicitly requests them; future background edits should preserve both horizontal spread control and vertical fade control together
 - Future extension points: the ticker tile style can later become a reusable “brand-marquee” variant, and the hero’s vertical fade intensity can be extracted into a route-level token if more immersive pages are added
 - Known limitations / technical debt: the ticker is now cleaner and closer to the requested direction, but if near-pixel parity with the live RePay site is required later, chip proportions and motion cadence may still need one more side-by-side tuning pass
+
+### Entry 026
+
+- Feature name: Render v2 redeploy preparation and production config alignment
+- Phase: M6
+- Purpose: align the repository with the actual v2 backend entrypoint so the user can delete the legacy Render service and recreate it without inheriting outdated build commands, health checks, or missing environment variables
+- User value: redeploying to Render now has a clear, low-risk path with accurate commands, a complete environment-variable checklist, and explicit separation between the API service and the independently deployed frontend
+- APIs: unchanged; deployment preparation only, with the existing `/api/v2/*` contracts preserved exactly as implemented
+- Request/response summary: no API payload changes; this pass updates infrastructure configuration and deployment documentation only
+- Frameworks/libraries used: existing FastAPI v2 backend, Render Web Service deployment model, and Supabase PostgreSQL connection strategy
+- Implementation notes: replaced the outdated legacy `render.yaml` entrypoint with the actual v2 app target `apps.api.potato_api.app:app`, switched the build command to `apps/api/requirements.txt`, updated the health check to `/api/v2/health`, expanded the environment-variable template with JWT and CORS fields in `.env.example`, refreshed the README deployment section, and added `docs/render-redeploy-v2.md` as a step-by-step Render recreation guide
+- State transitions and edge cases: runtime behavior for auth, tasks, rooms, timer, analytics, and planner remains unchanged; the main deployment edge case addressed here is that the new backend still depends on repository-root shared modules, so Render must deploy from the repo root rather than `apps/api` as an isolated subdirectory
+- Performance strategy: no runtime performance cost; this is a configuration/documentation pass only
+- Test coverage: configuration reviewed against the live v2 app entrypoint and environment-loading paths; no behavioral code path changed
+- Maintenance notes: whenever the backend entrypoint, env contract, or deployment topology changes, `render.yaml`, `.env.example`, README deployment notes, and this doc section must be updated together in the same change
+- Future extension points: if frontend hosting is finalized on Cloudflare Pages or another static platform, add a companion deployment guide that pairs the chosen frontend route strategy with the existing Render API configuration
+- Known limitations / technical debt: the repo now accurately documents backend redeploy, but the frontend still expects either a same-origin `/api` proxy or a future explicit API base URL strategy before full public cutover
