@@ -412,6 +412,12 @@ API_ORIGIN=https://your-render-service.onrender.com
 
 - [docs/cloudflare-pages-deploy.md](/Users/lin20051105/Desktop/potato_todo/docs/cloudflare-pages-deploy.md)
 
+## 架构与维护总说明
+
+如果你要长期维护当前线上版本，优先阅读：
+
+- [docs/system-architecture-maintenance.md](/Users/lin20051105/Desktop/potato_todo/docs/system-architecture-maintenance.md)
+
 ## 数据库说明
 
 - 本地开发可直接用 SQLite

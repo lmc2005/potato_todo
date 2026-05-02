@@ -883,3 +883,20 @@ Release standard:
 - Maintenance notes: if the frontend later migrates to an explicit `API_BASE_URL`, this proxy can be retired, but until then all Cloudflare deployment docs and env expectations must keep `API_ORIGIN` in sync with the active Render backend
 - Future extension points: custom headers, caching rules, or auth middleware can later be layered into the same `functions/` tree if the Pages deployment grows beyond simple proxying
 - Known limitations / technical debt: the Pages proxy currently assumes a single upstream API origin and does not yet add specialized error surfacing or branch-specific upstream routing
+
+### Entry 028
+
+- Feature name: architecture and maintenance handbook for live operations
+- Phase: M6
+- Purpose: consolidate the real production topology, codebase ownership boundaries, deployment layout, and ongoing maintenance rules into a single operational handbook that future maintainers can follow without re-deriving the system from code
+- User value: the project now has one document that explains how the frontend, backend, database, Cloudflare proxy layer, and deployment providers fit together, plus exactly how to maintain, release, back up, and troubleshoot the live system
+- APIs: unchanged; this is a documentation and operations pass only, with all `/api/v2/*` contracts preserved as-is
+- Request/response summary: no application contract changes; the new document describes the existing request flow from browser to Pages proxy to Render API to Supabase
+- Frameworks/libraries used: existing React + Vite frontend, Cloudflare Pages/Functions, FastAPI backend, SQLAlchemy models, and Supabase Postgres deployment stack
+- Implementation notes: added `docs/system-architecture-maintenance.md` as the new high-level architecture and maintenance guide; documented the monorepo responsibilities, live routing path, Cloudflare proxy role, Render deployment role, Supabase persistence model, release procedures, common failure modes, backup strategy, and the important reality that v2 still reuses root-level `app/database.py` and `app/models.py`; and linked the guide from the README for easier discovery
+- State transitions and edge cases: runtime behavior is unchanged; the most important operational edge case captured here is that maintainers must treat `apps/web`, `functions/`, `apps/api`, and root-level `app/` persistence code as one coupled delivery chain rather than editing them in isolation
+- Performance strategy: no runtime performance cost; the value comes from reducing maintenance mistakes and deployment misconfiguration
+- Test coverage: no behavioral code changed; documentation was aligned against the current repository layout, active deployment files, and live deployment path
+- Maintenance notes: this handbook should be updated whenever deployment topology, database ownership, environment contracts, or the frontend-to-backend routing strategy changes
+- Future extension points: once the ORM and migrations are fully pulled into `apps/api`, this handbook can be simplified by removing the current compatibility-layer warnings and replacing them with a cleaner single-source persistence model
+- Known limitations / technical debt: the system is now much better documented, but the architecture still carries a deliberate transitional dependency on root-level legacy persistence code that maintainers must continue to respect
