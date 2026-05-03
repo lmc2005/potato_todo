@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 import { loadCurrentTimer, loadPomodoroSettings, pauseTimer, resumeTimer, skipPomodoro, startPomodoro, startTimer, stopTimer } from '@/features/focus/api'
-import { listSubjects, listTasks } from '@/features/workspace/api'
+import { createSubject, listSubjects, listTasks } from '@/features/workspace/api'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
 import { Button, EmptyState, InlineMessage, Input, Select } from '@/shared/components/ui'
 import { formatDuration, formatMinutes } from '@/shared/lib/date'
@@ -87,6 +87,8 @@ export function RouteComponent() {
   const [mode, setMode] = useState<'count_up' | 'count_down' | 'pomodoro'>('count_up')
   const [subjectId, setSubjectId] = useState<string>('')
   const [taskId, setTaskId] = useState<string>('')
+  const [subjectName, setSubjectName] = useState('')
+  const [subjectColor, setSubjectColor] = useState('#8cf2d6')
   const [durationMinutes, setDurationMinutes] = useState('50')
   const [pomodoroDraft, setPomodoroDraft] = useState<{
     focusMinutes: string
@@ -165,6 +167,18 @@ export function RouteComponent() {
     })
     setTickMs(Date.now())
   }
+
+  const createSubjectMutation = useMutation({
+    mutationFn: createSubject,
+    onSuccess: async ({ item }) => {
+      setSubjectName('')
+      setFeedback('Subject created.')
+      setSubjectId(String(item.id))
+      await client.invalidateQueries({ queryKey: ['subjects'] })
+      await client.invalidateQueries({ queryKey: ['workspace-overview'] })
+    },
+    onError: (error) => setFeedback(describeError(error)),
+  })
 
   const startTimerMutation = useMutation({
     mutationFn: startTimer,
@@ -361,42 +375,6 @@ export function RouteComponent() {
       {feedback ? <InlineMessage tone={feedback.toLowerCase().includes('error') || feedback.toLowerCase().includes('failed') ? 'danger' : 'success'}>{feedback}</InlineMessage> : null}
       {currentTimerQuery.error ? <InlineMessage tone="danger">{describeError(currentTimerQuery.error)}</InlineMessage> : null}
 
-      <ScrollReveal soft>
-        <section className="focus-detail-grid">
-          <article className="focus-detail-card">
-            <p className="eyebrow">Current lane</p>
-            <p className="focus-detail-title">{timer?.active ? activeSubject?.name ?? 'Open subject' : selectedSubject?.name ?? 'Choose a subject'}</p>
-            <p className="focus-detail-copy">
-              {timer?.active
-                ? activeTask?.title ?? 'This session is not linked to a task yet.'
-                : selectedTask?.title ?? 'Link a task when you want the session to land in a specific work item.'}
-            </p>
-          </article>
-
-          <article className="focus-detail-card">
-            <p className="eyebrow">Session state</p>
-            <p className="focus-detail-title">{timer?.active ? (timer.is_paused ? 'Paused' : 'In motion') : 'Idle and ready'}</p>
-            <p className="focus-detail-copy">
-              {isVisible
-                ? 'The local timer is actively advancing on screen and periodically syncing with the backend.'
-                : 'Background tabs stay calmer. The page reduces work until you come back.'}
-            </p>
-          </article>
-
-          <article className="focus-detail-card">
-            <p className="eyebrow">Saved rhythm</p>
-            <p className="focus-detail-title">
-              {formatMinutes(Number(focusMinutes))} / {formatMinutes(Number(shortBreakMinutes))}
-            </p>
-            <p className="focus-detail-copy">
-              {mode === 'pomodoro'
-                ? `${Number(totalRounds)} rounds, with ${formatMinutes(Number(longBreakMinutes))} for long breaks.`
-                : 'Switch into Pomodoro mode at any time to reuse your saved focus and break defaults.'}
-            </p>
-          </article>
-        </section>
-      </ScrollReveal>
-
       <ScrollReveal delayMs={80}>
         <section className="focus-setup-shell">
           <div className="focus-setup-header">
@@ -410,9 +388,60 @@ export function RouteComponent() {
           </div>
 
           {subjects.length === 0 ? (
-            <EmptyState title="Create a subject first" description="Sessions are grouped by subject so your progress, planning, and study records stay readable." />
+            <div className="grid gap-4">
+              <form
+                className="focus-subject-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setFeedback(null)
+                  createSubjectMutation.mutate({
+                    name: subjectName,
+                    color: subjectColor,
+                  })
+                }}
+              >
+                <div className="space-y-3">
+                  <p className="eyebrow">Create subject</p>
+                  <h3 className="focus-subject-title">Add the first study lane here.</h3>
+                  <p className="focus-detail-copy">Subjects organize the timer, analytics, tasks, and planning context, so Focus is now the fastest place to create one.</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_auto]">
+                  <Input value={subjectName} onChange={(event) => setSubjectName(event.target.value)} placeholder="Create a subject lane" required />
+                  <Input type="color" className="h-[54px]" value={subjectColor} onChange={(event) => setSubjectColor(event.target.value)} />
+                  <Button type="submit" disabled={createSubjectMutation.isPending}>
+                    Add subject
+                  </Button>
+                </div>
+              </form>
+              <EmptyState title="Create a subject first" description="Sessions are grouped by subject so your progress, planning, and study records stay readable." />
+            </div>
           ) : (
             <div className="grid gap-5">
+              <form
+                className="focus-subject-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setFeedback(null)
+                  createSubjectMutation.mutate({
+                    name: subjectName,
+                    color: subjectColor,
+                  })
+                }}
+              >
+                <div className="space-y-3">
+                  <p className="eyebrow">Create subject</p>
+                  <h3 className="focus-subject-title">Need a new lane before you start?</h3>
+                  <p className="focus-detail-copy">Create it here, then start the timer without leaving Focus.</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_auto]">
+                  <Input value={subjectName} onChange={(event) => setSubjectName(event.target.value)} placeholder="Create a subject lane" required />
+                  <Input type="color" className="h-[54px]" value={subjectColor} onChange={(event) => setSubjectColor(event.target.value)} />
+                  <Button type="submit" disabled={createSubjectMutation.isPending}>
+                    Add subject
+                  </Button>
+                </div>
+              </form>
+
               <div className="focus-mode-switch">
                 {[
                   { value: 'count_up', label: 'Count up' },
@@ -538,6 +567,42 @@ export function RouteComponent() {
               </div>
             </div>
           )}
+        </section>
+      </ScrollReveal>
+
+      <ScrollReveal soft>
+        <section className="focus-detail-grid">
+          <article className="focus-detail-card">
+            <p className="eyebrow">Current lane</p>
+            <p className="focus-detail-title">{timer?.active ? activeSubject?.name ?? 'Open subject' : selectedSubject?.name ?? 'Choose a subject'}</p>
+            <p className="focus-detail-copy">
+              {timer?.active
+                ? activeTask?.title ?? 'This session is not linked to a task yet.'
+                : selectedTask?.title ?? 'Link a task when you want the session to land in a specific work item.'}
+            </p>
+          </article>
+
+          <article className="focus-detail-card">
+            <p className="eyebrow">Session state</p>
+            <p className="focus-detail-title">{timer?.active ? (timer.is_paused ? 'Paused' : 'In motion') : 'Idle and ready'}</p>
+            <p className="focus-detail-copy">
+              {isVisible
+                ? 'The local timer is actively advancing on screen and periodically syncing with the backend.'
+                : 'Background tabs stay calmer. The page reduces work until you come back.'}
+            </p>
+          </article>
+
+          <article className="focus-detail-card">
+            <p className="eyebrow">Saved rhythm</p>
+            <p className="focus-detail-title">
+              {formatMinutes(Number(focusMinutes))} / {formatMinutes(Number(shortBreakMinutes))}
+            </p>
+            <p className="focus-detail-copy">
+              {mode === 'pomodoro'
+                ? `${Number(totalRounds)} rounds, with ${formatMinutes(Number(longBreakMinutes))} for long breaks.`
+                : 'Switch into Pomodoro mode at any time to reuse your saved focus and break defaults.'}
+            </p>
+          </article>
         </section>
       </ScrollReveal>
     </div>

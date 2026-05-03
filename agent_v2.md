@@ -968,3 +968,37 @@ Release standard:
 - Maintenance notes: every new v2 module should get at least one smoke-level path test that proves the browser-facing contract still works after refactors; any action that changes many datasets at once should invalidate all affected query families in the same change
 - Future extension points: add browser-level integration coverage for the v2 React app once a stable local automation harness is introduced
 - Known limitations / technical debt: current automated coverage is API-heavy and does not yet perform screenshot or DOM-level assertions against the rebuilt v2 frontend
+
+### Entry 033
+
+- Feature name: auth landing interaction repair and relogin-path hardening
+- Phase: M3-M5
+- Purpose: fix the broken-feeling login landing interaction by making `Sign in` and `Create account` act as in-page jump controls, while also explicitly hardening the register-logout-login path in automated coverage
+- User value: the auth surface now behaves like a guided landing page instead of a confusing dead-end header; clicking the top auth actions visibly moves to the correct form, and previously created accounts are explicitly verified to be able to sign back in
+- APIs: unchanged; the page still uses `/api/v2/auth/register` and `/api/v2/auth/login`, and auth session behavior is still driven by `/api/v2/auth/refresh` and `/api/v2/auth/logout`
+- Request/response summary: no contract changes; the front-end change is purely in routing/scroll behavior and form composition, and the backend validation change is test coverage only
+- Frameworks/libraries used: React + TypeScript, TanStack Router navigation, React Hook Form + Zod, and existing auth provider/session flow
+- Implementation notes: rebuilt the auth screen into a hero plus dual-form layout, replaced the top auth links with in-page jump controls that also keep the `/login` and `/register` route states aligned, and extended the v2 auth test so it now verifies that an account can register, logout, and login again successfully
+- State transitions and edge cases: form validation remains unchanged; route mode still controls the highlighted auth action, but the page no longer depends on route-switching alone for the user to discover the right form
+- Performance strategy: no added runtime cost beyond a lightweight `scrollIntoView` interaction on explicit clicks
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and updated `apps/api/tests/test_v2_auth.py`
+- Maintenance notes: if the auth page is redesigned again, preserve the rule that visible primary entry actions must map to an obvious form target instead of becoming no-op same-route links
+- Future extension points: add URL hash support such as `/login#register` if product later needs direct deep links to a specific form without extra client logic
+- Known limitations / technical debt: current verification proves the API-level re-login path, but there is still no browser-automation test covering the exact click/scroll behavior in a real DOM environment
+
+### Entry 034
+
+- Feature name: Focus subject-creation relocation, Rooms entry cleanup, and action-palette adjustment
+- Phase: M4-M5
+- Purpose: pull subject creation into the Focus workflow where timer setup actually happens, simplify room creation by removing manual timezone entry, align create/join room entry panels horizontally, and refine the prominent action-button palette
+- User value: users can now create a missing subject exactly where they are about to start a session, room creation asks for less irrelevant information, joining and creating rooms read as paired actions, and the top-level `Sign out` / `Start focus` buttons feel more intentional visually
+- APIs: unchanged; Focus still uses `/api/v2/subjects` for subject creation and timer endpoints as before, while Rooms still uses `/api/v2/rooms` and `/api/v2/rooms/join`
+- Request/response summary: no DTO changes; Focus now creates subjects from the same front-end contract previously used by Workspace, and Rooms continues to send timezone implicitly from client context instead of collecting it in a visible form field
+- Frameworks/libraries used: React + TypeScript, TanStack Query mutations/invalidation, shared UI primitives, and shared CSS token system
+- Implementation notes: added inline subject creation to `apps/web/src/routes/focus-page.tsx` with automatic subject selection after creation; removed the subject-creation form from Workspace and replaced it with a pointer back to Focus; changed Rooms to derive timezone locally and present create/join in a parallel `rooms-entry-grid`; and introduced dedicated visual overrides for the header sign-out button and Workspace focus CTA
+- State transitions and edge cases: newly created subjects immediately invalidate the `subjects` and `workspace-overview` queries and preselect themselves inside Focus; room creation still sends a timezone value, but the user no longer has to type it manually
+- Performance strategy: no added loops or polling; all changes are mutation-driven and only refresh the minimal dependent query sets after explicit user actions
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and the full pytest suite `19 passed`
+- Maintenance notes: keep subject creation co-located with session setup unless the product later introduces a dedicated subjects route in v2; any future room-entry simplification should preserve the low-friction pairing between create and join
+- Future extension points: the Focus subject-creation card can later evolve into richer subject presets or goal-setting without changing the underlying subject creation contract
+- Known limitations / technical debt: Workspace still shows the subject list for visibility, so the product currently splits “create in Focus” and “review in Workspace” rather than consolidating all subject operations into one dedicated route

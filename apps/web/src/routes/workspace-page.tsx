@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { createEvent, createSubject, createTask, deleteEvent, deleteSubject, deleteTask, updateTask, workspaceOverview } from '@/features/workspace/api'
+import { createEvent, createTask, deleteEvent, deleteSubject, deleteTask, updateTask, workspaceOverview } from '@/features/workspace/api'
 import { MarqueeTicker } from '@/shared/components/marquee-ticker'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
 import { Button, EmptyState, InlineMessage, Input, Select } from '@/shared/components/ui'
@@ -15,8 +15,6 @@ function queryKey(start: string, end: string) {
 
 export function RouteComponent() {
   const [range] = useState(() => getWindowRange(7))
-  const [subjectName, setSubjectName] = useState('')
-  const [subjectColor, setSubjectColor] = useState('#8cf2d6')
   const [taskTitle, setTaskTitle] = useState('')
   const [taskSubjectId, setTaskSubjectId] = useState<string>('')
   const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high'>('medium')
@@ -39,16 +37,6 @@ export function RouteComponent() {
       queryKey: queryKey(range.start, range.end),
     })
   }
-
-  const createSubjectMutation = useMutation({
-    mutationFn: createSubject,
-    onSuccess: async () => {
-      setSubjectName('')
-      setFeedback('Subject created.')
-      await invalidateOverview()
-    },
-    onError: (error) => setFeedback(describeError(error)),
-  })
 
   const createTaskMutation = useMutation({
     mutationFn: createTask,
@@ -202,7 +190,7 @@ export function RouteComponent() {
               Tasks, focus sessions, planning drafts, and study blocks stay on one flowing page so the day reads in order instead of breaking into isolated cards.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Link to="/app/focus" className="btn-base btn-primary">
+              <Link to="/app/focus" className="btn-base btn-primary hero-start-focus-btn">
                 Start focus
               </Link>
               <Link to="/app/agent" className="btn-base btn-secondary">
@@ -466,27 +454,20 @@ export function RouteComponent() {
             <div className="space-y-4">
               <p className="eyebrow">Subject lanes</p>
               <h2 className="section-title text-black">Keep the week grouped by stream, not by noise.</h2>
-              <p className="body-copy">Subjects hold daily goals, focus history, and planning context so the rest of the desk has somewhere to connect.</p>
+              <p className="body-copy">Subjects hold daily goals, focus history, and planning context so the rest of the desk has somewhere to connect. New subjects are now created directly from Focus.</p>
             </div>
 
             <div className="space-y-6">
-              <form
-                className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_auto]"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  setFeedback(null)
-                  createSubjectMutation.mutate({
-                    name: subjectName,
-                    color: subjectColor,
-                  })
-                }}
-              >
-                <Input value={subjectName} onChange={(event) => setSubjectName(event.target.value)} placeholder="Create a subject lane" required />
-                <Input type="color" className="h-[54px]" value={subjectColor} onChange={(event) => setSubjectColor(event.target.value)} />
-                <Button type="submit" disabled={createSubjectMutation.isPending}>
-                  Add subject
-                </Button>
-              </form>
+              <div className="surface-subtle flex flex-wrap items-center justify-between gap-4 p-5">
+                <div>
+                  <p className="eyebrow">Create in Focus</p>
+                  <p className="mt-3 text-lg font-medium tracking-[-0.03em] text-black">Add new subject lanes right below the Focus timer setup.</p>
+                  <p className="mt-2 text-sm leading-7 text-[#666d80]">That keeps timer setup and subject creation in the same workflow instead of splitting them across pages.</p>
+                </div>
+                <Link to="/app/focus" className="btn-base btn-secondary">
+                  Open focus setup
+                </Link>
+              </div>
 
               {subjects.length === 0 ? (
                 <EmptyState title="No subjects yet" description="Start with one study lane and the rest of the workspace will begin to organize around it." />

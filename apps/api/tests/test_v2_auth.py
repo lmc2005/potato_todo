@@ -46,3 +46,14 @@ def test_v2_auth_register_login_refresh_and_me():
         logout = client.post("/api/v2/auth/logout")
         assert logout.status_code == 200
         assert logout.json()["ok"] is True
+
+        login = client.post(
+            "/api/v2/auth/login",
+            json={
+                "email": "v2@example.com",
+                "password": "password123",
+            },
+        )
+        assert login.status_code == 200
+        relogged = login.json()
+        assert relogged["user"]["email"] == "v2@example.com"

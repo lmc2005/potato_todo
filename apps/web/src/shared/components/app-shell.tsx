@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Button
               variant="primary"
               size="sm"
-              className="min-w-[104px]"
+              className="header-signout-btn min-w-[104px]"
               onClick={() => {
                 void auth.logout()
               }}

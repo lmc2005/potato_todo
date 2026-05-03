@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
+import { useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -46,6 +47,8 @@ const authHighlights = [
 export function AuthScreen({ mode }: { mode: 'login' | 'register' }) {
   const auth = useAuth()
   const navigate = useNavigate()
+  const loginCardRef = useRef<HTMLElement | null>(null)
+  const registerCardRef = useRef<HTMLElement | null>(null)
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -63,6 +66,14 @@ export function AuthScreen({ mode }: { mode: 'login' | 'register' }) {
     },
     shouldUnregister: true,
   })
+
+  const scrollToCard = (target: 'login' | 'register', smooth = true) => {
+    const node = target === 'login' ? loginCardRef.current : registerCardRef.current
+    node?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'start',
+    })
+  }
 
   async function onLoginSubmit(values: LoginValues) {
     try {
@@ -102,24 +113,38 @@ export function AuthScreen({ mode }: { mode: 'login' | 'register' }) {
       <div className="page-shell flex min-h-screen flex-col gap-8 pb-10 pt-4 sm:pt-5">
         <header className="sticky top-0 z-20 bg-white/94 py-4 backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <Link to="/login" className="nav-wordmark">
+            <button type="button" className="nav-wordmark bg-transparent p-0" onClick={() => scrollToCard('login')}>
               Potato Todo
-            </Link>
+            </button>
 
             <nav className="flex items-center gap-5">
-              <Link to="/login" className={`repay-link ${mode === 'login' ? 'repay-link-active' : ''}`}>
+              <button
+                type="button"
+                className={`repay-link bg-transparent p-0 ${mode === 'login' ? 'repay-link-active' : ''}`}
+                onClick={() => {
+                  void navigate({ to: '/login' })
+                  scrollToCard('login')
+                }}
+              >
                 Sign in
-              </Link>
-              <Link to="/register" className={`repay-link ${mode === 'register' ? 'repay-link-active' : ''}`}>
+              </button>
+              <button
+                type="button"
+                className={`repay-link bg-transparent p-0 ${mode === 'register' ? 'repay-link-active' : ''}`}
+                onClick={() => {
+                  void navigate({ to: '/register' })
+                  scrollToCard('register')
+                }}
+              >
                 Create account
-              </Link>
+              </button>
             </nav>
           </div>
         </header>
 
         <main className="grid flex-1 gap-8">
           <section className="repay-hero-bg">
-            <ScrollReveal className="mx-auto max-w-[820px] text-center">
+            <ScrollReveal className="mx-auto max-w-[860px] text-center">
               <p className="eyebrow">The smart way to study.</p>
               <h1 className="hero-title mt-6 text-black">
                 Keep the whole day
@@ -129,98 +154,113 @@ export function AuthScreen({ mode }: { mode: 'login' | 'register' }) {
               <p className="body-copy mx-auto mt-6 max-w-3xl text-[1.02rem]">
                 One desk for tasks, focus, planning, and shared rooms. Clear enough to open every day, calm enough to leave open for hours.
               </p>
+
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <Button type="button" className="auth-jump-btn" onClick={() => scrollToCard('login')}>
+                  Sign in
+                </Button>
+                <Button type="button" variant="secondary" className="auth-jump-btn" onClick={() => scrollToCard('register')}>
+                  Create account
+                </Button>
+              </div>
             </ScrollReveal>
 
             <ScrollReveal className="repay-stage" delayMs={90}>
-              <div className="repay-stage-screen grid gap-6 xl:grid-cols-[1.04fr_420px] xl:items-stretch">
-                <div className="grid content-between gap-6">
-                  <div className="space-y-4">
-                    <p className="eyebrow">A cleaner start</p>
-                    <h2 className="section-title text-black">
-                      Study flow,
-                      <br />
-                      from first task to final review.
-                    </h2>
-                    <p className="max-w-2xl text-[0.98rem] leading-8 text-[#40424f]">
-                      The page opens with the right signals, then the desk unfolds as you move into focus, planning, and the next scheduled block.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {authHighlights.map((item) => (
-                      <div key={item.label} className="rounded-[28px] bg-white p-5">
-                        <p className="eyebrow">{item.label}</p>
-                        <p className="mt-4 text-[1.35rem] font-semibold leading-[1.04] tracking-[-0.05em] text-black">{item.value}</p>
-                        <p className="mt-2 text-sm leading-7 text-[#666d80]">{item.detail}</p>
-                      </div>
-                    ))}
-                  </div>
+              <div className="repay-stage-screen grid gap-6">
+                <div className="space-y-4">
+                  <p className="eyebrow">A cleaner start</p>
+                  <h2 className="section-title text-black">
+                    Study flow,
+                    <br />
+                    from first task to final review.
+                  </h2>
+                  <p className="max-w-2xl text-[0.98rem] leading-8 text-[#40424f]">
+                    The page opens with the right signals, then the desk unfolds as you move into focus, planning, and the next scheduled block.
+                  </p>
                 </div>
 
-                <div className="rounded-[32px] bg-white p-6 sm:p-7">
-                  <div className="space-y-3">
-                    <p className="eyebrow">{mode === 'login' ? 'Welcome back' : 'Create your desk'}</p>
-                    <h2 className="text-[clamp(2rem,3vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.08em] text-black">
-                      {mode === 'login' ? 'Step back into the day.' : 'Open your account.'}
-                    </h2>
-                    <p className="text-sm leading-7 text-[#666d80]">
-                      {mode === 'login'
-                        ? 'Sign in to continue your tasks, focus sessions, planning drafts, and shared rooms.'
-                        : 'Create an account and move straight into your study workspace.'}
-                    </p>
-                  </div>
-
-                  <div className="mt-8">
-                    {mode === 'login' ? (
-                      <form className="grid gap-4" onSubmit={loginForm.handleSubmit(onLoginSubmit)}>
-                        <label className="grid gap-2 text-sm font-medium text-[#40424f]">
-                          Email
-                          <Input type="email" autoComplete="email" placeholder="you@example.com" {...loginForm.register('email')} />
-                          {loginForm.formState.errors.email ? <span className="text-sm text-[#b9574b]">{loginForm.formState.errors.email.message}</span> : null}
-                        </label>
-
-                        <label className="grid gap-2 text-sm font-medium text-[#40424f]">
-                          Password
-                          <Input type="password" autoComplete="current-password" placeholder="Minimum 8 characters" {...loginForm.register('password')} />
-                          {loginForm.formState.errors.password ? <span className="text-sm text-[#b9574b]">{loginForm.formState.errors.password.message}</span> : null}
-                        </label>
-
-                        {loginForm.formState.errors.root?.message ? <InlineMessage tone="danger">{loginForm.formState.errors.root.message}</InlineMessage> : null}
-
-                        <Button type="submit" size="lg" disabled={loginForm.formState.isSubmitting} className="mt-2">
-                          {loginForm.formState.isSubmitting ? 'Working...' : 'Open workspace'}
-                        </Button>
-                      </form>
-                    ) : (
-                      <form className="grid gap-4" onSubmit={registerForm.handleSubmit(onRegisterSubmit)}>
-                        <label className="grid gap-2 text-sm font-medium text-[#40424f]">
-                          Email
-                          <Input type="email" autoComplete="email" placeholder="you@example.com" {...registerForm.register('email')} />
-                          {registerForm.formState.errors.email ? <span className="text-sm text-[#b9574b]">{registerForm.formState.errors.email.message}</span> : null}
-                        </label>
-
-                        <label className="grid gap-2 text-sm font-medium text-[#40424f]">
-                          Password
-                          <Input type="password" autoComplete="new-password" placeholder="Minimum 8 characters" {...registerForm.register('password')} />
-                          {registerForm.formState.errors.password ? <span className="text-sm text-[#b9574b]">{registerForm.formState.errors.password.message}</span> : null}
-                        </label>
-
-                        <label className="grid gap-2 text-sm font-medium text-[#40424f]">
-                          Confirm password
-                          <Input type="password" autoComplete="new-password" placeholder="Repeat your password" {...registerForm.register('confirm_password')} />
-                          {registerForm.formState.errors.confirm_password ? <span className="text-sm text-[#b9574b]">{registerForm.formState.errors.confirm_password.message}</span> : null}
-                        </label>
-
-                        {registerForm.formState.errors.root?.message ? <InlineMessage tone="danger">{registerForm.formState.errors.root.message}</InlineMessage> : null}
-
-                        <Button type="submit" size="lg" disabled={registerForm.formState.isSubmitting} className="mt-2">
-                          {registerForm.formState.isSubmitting ? 'Working...' : 'Create account'}
-                        </Button>
-                      </form>
-                    )}
-                  </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {authHighlights.map((item) => (
+                    <div key={item.label} className="rounded-[28px] bg-white p-5">
+                      <p className="eyebrow">{item.label}</p>
+                      <p className="mt-4 text-[1.35rem] font-semibold leading-[1.04] tracking-[-0.05em] text-black">{item.value}</p>
+                      <p className="mt-2 text-sm leading-7 text-[#666d80]">{item.detail}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
+            </ScrollReveal>
+          </section>
+
+          <section className="auth-form-deck">
+            <ScrollReveal>
+              <article ref={loginCardRef} className="auth-form-card">
+                <div className="space-y-3">
+                  <p className="eyebrow">Welcome back</p>
+                  <h2 className="text-[clamp(2rem,3vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.08em] text-black">Step back into the day.</h2>
+                  <p className="text-sm leading-7 text-[#666d80]">
+                    Sign in to continue your tasks, focus sessions, planning drafts, and shared rooms.
+                  </p>
+                </div>
+
+                <form className="mt-8 grid gap-4" onSubmit={loginForm.handleSubmit(onLoginSubmit)}>
+                  <label className="grid gap-2 text-sm font-medium text-[#40424f]">
+                    Email
+                    <Input type="email" autoComplete="email" placeholder="you@example.com" {...loginForm.register('email')} />
+                    {loginForm.formState.errors.email ? <span className="text-sm text-[#b9574b]">{loginForm.formState.errors.email.message}</span> : null}
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-[#40424f]">
+                    Password
+                    <Input type="password" autoComplete="current-password" placeholder="Minimum 8 characters" {...loginForm.register('password')} />
+                    {loginForm.formState.errors.password ? <span className="text-sm text-[#b9574b]">{loginForm.formState.errors.password.message}</span> : null}
+                  </label>
+
+                  {loginForm.formState.errors.root?.message ? <InlineMessage tone="danger">{loginForm.formState.errors.root.message}</InlineMessage> : null}
+
+                  <Button type="submit" size="lg" disabled={loginForm.formState.isSubmitting} className="mt-2">
+                    {loginForm.formState.isSubmitting ? 'Working...' : 'Open workspace'}
+                  </Button>
+                </form>
+              </article>
+            </ScrollReveal>
+
+            <ScrollReveal delayMs={80}>
+              <article ref={registerCardRef} className="auth-form-card">
+                <div className="space-y-3">
+                  <p className="eyebrow">Create your desk</p>
+                  <h2 className="text-[clamp(2rem,3vw,2.8rem)] font-semibold leading-[1.02] tracking-[-0.08em] text-black">Open your account.</h2>
+                  <p className="text-sm leading-7 text-[#666d80]">
+                    Create an account and move straight into your study workspace.
+                  </p>
+                </div>
+
+                <form className="mt-8 grid gap-4" onSubmit={registerForm.handleSubmit(onRegisterSubmit)}>
+                  <label className="grid gap-2 text-sm font-medium text-[#40424f]">
+                    Email
+                    <Input type="email" autoComplete="email" placeholder="you@example.com" {...registerForm.register('email')} />
+                    {registerForm.formState.errors.email ? <span className="text-sm text-[#b9574b]">{registerForm.formState.errors.email.message}</span> : null}
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-[#40424f]">
+                    Password
+                    <Input type="password" autoComplete="new-password" placeholder="Minimum 8 characters" {...registerForm.register('password')} />
+                    {registerForm.formState.errors.password ? <span className="text-sm text-[#b9574b]">{registerForm.formState.errors.password.message}</span> : null}
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-[#40424f]">
+                    Confirm password
+                    <Input type="password" autoComplete="new-password" placeholder="Repeat your password" {...registerForm.register('confirm_password')} />
+                    {registerForm.formState.errors.confirm_password ? <span className="text-sm text-[#b9574b]">{registerForm.formState.errors.confirm_password.message}</span> : null}
+                  </label>
+
+                  {registerForm.formState.errors.root?.message ? <InlineMessage tone="danger">{registerForm.formState.errors.root.message}</InlineMessage> : null}
+
+                  <Button type="submit" size="lg" disabled={registerForm.formState.isSubmitting} className="mt-2">
+                    {registerForm.formState.isSubmitting ? 'Working...' : 'Create account'}
+                  </Button>
+                </form>
+              </article>
             </ScrollReveal>
           </section>
         </main>

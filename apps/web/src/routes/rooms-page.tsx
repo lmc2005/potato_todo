@@ -14,7 +14,7 @@ export function RouteComponent() {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [roomName, setRoomName] = useState('')
   const [memberLimit, setMemberLimit] = useState('8')
-  const [roomTimezone, setRoomTimezone] = useState('Asia/Shanghai')
+  const [roomTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai')
   const [joinCode, setJoinCode] = useState('')
   const [activeRoomId, setActiveRoomId] = useState<number | null>(null)
 
@@ -174,59 +174,58 @@ export function RouteComponent() {
       <ScrollReveal soft>
         <section className="rooms-layout">
           <div className="rooms-lobby-column">
-            <article className="rooms-form-card">
-              <div className="rooms-section-head">
-                <div>
-                  <p className="eyebrow">Create</p>
-                  <h2 className="rooms-section-title">Open a new study room.</h2>
+            <div className="rooms-entry-grid">
+              <article className="rooms-form-card">
+                <div className="rooms-section-head">
+                  <div>
+                    <p className="eyebrow">Create</p>
+                    <h2 className="rooms-section-title">Open a new study room.</h2>
+                  </div>
                 </div>
-              </div>
 
-              <form
-                className="grid gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  createRoomMutation.mutate({
-                    name: roomName,
-                    member_limit: Number(memberLimit),
-                    timezone: roomTimezone,
-                  })
-                }}
-              >
-                <Input value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder="Create a study room" required />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input type="number" min={2} max={20} value={memberLimit} onChange={(event) => setMemberLimit(event.target.value)} />
-                  <Input value={roomTimezone} onChange={(event) => setRoomTimezone(event.target.value)} placeholder="Asia/Shanghai" />
+                <form
+                  className="grid gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    createRoomMutation.mutate({
+                      name: roomName,
+                      member_limit: Number(memberLimit),
+                      timezone: roomTimezone,
+                    })
+                  }}
+                >
+                  <Input value={roomName} onChange={(event) => setRoomName(event.target.value)} placeholder="Create a study room" required />
+                  <Input type="number" min={2} max={20} value={memberLimit} onChange={(event) => setMemberLimit(event.target.value)} placeholder="Member limit" />
+                  <Button type="submit" disabled={createRoomMutation.isPending}>
+                    Create room
+                  </Button>
+                </form>
+              </article>
+
+              <article className="rooms-form-card">
+                <div className="rooms-section-head">
+                  <div>
+                    <p className="eyebrow">Join</p>
+                    <h2 className="rooms-section-title">Step into an existing room.</h2>
+                  </div>
                 </div>
-                <Button type="submit" disabled={createRoomMutation.isPending}>
-                  Create room
-                </Button>
-              </form>
-            </article>
 
-            <article className="rooms-form-card">
-              <div className="rooms-section-head">
-                <div>
-                  <p className="eyebrow">Join</p>
-                  <h2 className="rooms-section-title">Step into an existing room.</h2>
-                </div>
-              </div>
-
-              <form
-                className="grid gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  joinRoomMutation.mutate({
-                    join_code: joinCode,
-                  })
-                }}
-              >
-                <Input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="Join code" required />
-                <Button type="submit" variant="secondary" disabled={joinRoomMutation.isPending}>
-                  Join room
-                </Button>
-              </form>
-            </article>
+                <form
+                  className="grid gap-3"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    joinRoomMutation.mutate({
+                      join_code: joinCode,
+                    })
+                  }}
+                >
+                  <Input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="Join code" required />
+                  <Button type="submit" variant="secondary" disabled={joinRoomMutation.isPending}>
+                    Join room
+                  </Button>
+                </form>
+              </article>
+            </div>
 
             <article className="rooms-list-card">
               <div className="rooms-section-head">
