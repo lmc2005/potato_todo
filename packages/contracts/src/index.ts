@@ -66,6 +66,37 @@ export type StatsPayload = {
     seconds: number
     minutes: number
   }>
+  task_completion_trend: Array<{
+    date: string
+    total: number
+    completed: number
+    on_time: number
+    completion_rate: number | null
+    on_time_rate: number | null
+  }>
+  task_ranking: Array<{
+    task_id: number
+    title: string
+    seconds: number
+    minutes: number
+  }>
+  goal_completion: Array<{
+    subject_id: number
+    name: string
+    minutes: number
+    target_minutes: number
+    completion: number
+  }>
+  sessions: Array<{
+    id: number
+    subject: string
+    task: string | null
+    mode: "count_up" | "count_down" | "pomodoro"
+    started_at: string
+    ended_at: string
+    focus_seconds: number
+    stop_reason: string | null
+  }>
 }
 
 export type TimerPayload = {

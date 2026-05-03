@@ -1024,6 +1024,12 @@
       box-shadow 180ms ease;
   }
 
+  .focus-mode-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+  }
+
   .agent-mode-pill.is-active,
   .focus-mode-chip.is-active {
     background: #ffffff;
@@ -1443,6 +1449,44 @@
     margin-top: 1.35rem;
   }
 
+  .focus-stage-config {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.3rem;
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1rem 1.05rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .focus-inline-config-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(180px, 0.52fr) minmax(0, 0.48fr);
+    align-items: end;
+  }
+
+  .focus-inline-summary {
+    display: grid;
+    gap: 0.48rem;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.07);
+    padding: 0.95rem 1rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .focus-inline-copy {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    letter-spacing: -0.014em;
+  }
+
+  .focus-inline-input {
+    background: rgba(255, 255, 255, 0.94);
+  }
+
   .focus-detail-grid,
   .rooms-stat-grid,
   .settings-command-grid {
@@ -1453,6 +1497,14 @@
 
   .focus-detail-card,
   .analytics-stat-card,
+  .analytics-primary-stage,
+  .analytics-completion-card,
+  .analytics-subject-card,
+  .analytics-goal-card,
+  .analytics-ranking-card,
+  .analytics-distribution-card,
+  .analytics-session-card,
+  .analytics-top-days,
   .rooms-stat-card,
   .settings-status-card {
     border-radius: 30px;
@@ -1469,6 +1521,14 @@
   .analytics-chart-stage,
   .analytics-mix-card,
   .analytics-insight-card,
+  .analytics-primary-stage,
+  .analytics-completion-card,
+  .analytics-subject-card,
+  .analytics-goal-card,
+  .analytics-ranking-card,
+  .analytics-distribution-card,
+  .analytics-session-card,
+  .analytics-top-days,
   .rooms-form-card,
   .rooms-list-card,
   .rooms-live-stage,
@@ -1525,6 +1585,9 @@
   }
 
   .analytics-layout,
+  .analytics-editorial-grid,
+  .analytics-secondary-grid,
+  .analytics-tertiary-grid,
   .rooms-layout {
     display: grid;
     gap: 1rem;
@@ -1576,6 +1639,182 @@
   .rooms-lobby-column {
     display: grid;
     gap: 1rem;
+  }
+
+  .analytics-control-column,
+  .analytics-support-stack {
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+  }
+
+  .analytics-reading-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.3rem;
+  }
+
+  .analytics-reading-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(18, 19, 26, 0.06);
+    padding: 0.7rem 0.94rem;
+    color: #535c6d;
+    font-size: 0.84rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .analytics-kpi-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .analytics-kpi-card {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+    min-height: 100%;
+  }
+
+  .analytics-kpi-value,
+  .analytics-reading-value {
+    margin: 0.45rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 2.8vw, 2.65rem);
+    line-height: 1.08;
+    letter-spacing: -0.055em;
+    color: #11131b;
+  }
+
+  .analytics-kpi-value-subject {
+    max-width: 11ch;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: clamp(1.45rem, 2.1vw, 2.05rem);
+    line-height: 1.1;
+  }
+
+  .analytics-kpi-copy {
+    color: #616979;
+    font-size: 0.94rem;
+    line-height: 1.72;
+    letter-spacing: -0.015em;
+  }
+
+  .analytics-editorial-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  }
+
+  .analytics-secondary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analytics-tertiary-grid {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+
+  .analytics-primary-stage,
+  .analytics-completion-card,
+  .analytics-subject-card,
+  .analytics-goal-card,
+  .analytics-ranking-card,
+  .analytics-distribution-card,
+  .analytics-session-card,
+  .analytics-top-days {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .analytics-reading-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .analytics-reading-card {
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.76);
+    padding: 1rem 1.05rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 14px 28px rgba(18, 19, 26, 0.03);
+  }
+
+  .analytics-goal-summary {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.72);
+    padding: 1rem 1.05rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .analytics-progress-list,
+  .analytics-distribution-list {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .analytics-progress-row,
+  .analytics-distribution-row {
+    display: grid;
+    gap: 0.68rem;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.72);
+    padding: 0.95rem 1rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+
+  .analytics-progress-head,
+  .analytics-session-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  .analytics-progress-track {
+    position: relative;
+    overflow: hidden;
+    height: 11px;
+    border-radius: 999px;
+    background: rgba(17, 19, 27, 0.08);
+  }
+
+  .analytics-progress-fill,
+  .analytics-distribution-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #796dff 0%, #74cafc 100%);
+  }
+
+  .analytics-tooltip {
+    display: grid;
+    gap: 0.3rem;
+    border-radius: 18px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.96);
+    padding: 0.82rem 0.9rem;
+    color: #1d1d1f;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
+  }
+
+  .analytics-tooltip-emphasis {
+    color: #796dff;
+    font-weight: 600;
+  }
+
+  .analytics-session-row {
+    gap: 0.85rem;
   }
 
   .rooms-entry-grid {
@@ -1659,6 +1898,9 @@
   .focus-hero-stage,
   .analytics-hero,
   .analytics-layout,
+  .analytics-editorial-grid,
+  .analytics-secondary-grid,
+  .analytics-tertiary-grid,
   .rooms-hero,
   .rooms-layout,
   .settings-command-board,
@@ -1668,8 +1910,12 @@
 
   .agent-toolbar-grid,
   .analytics-stat-row,
+  .analytics-kpi-grid,
+  .analytics-reading-grid,
+  .analytics-goal-summary,
   .rooms-entry-grid,
   .focus-form-grid,
+  .focus-inline-config-grid,
   .rooms-stat-grid,
   .settings-command-grid,
   .settings-recovery-grid {
@@ -1678,6 +1924,11 @@
 
   .focus-detail-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analytics-session-meta {
+    align-items: start;
+    justify-content: start;
   }
 
   .repay-stat::after {

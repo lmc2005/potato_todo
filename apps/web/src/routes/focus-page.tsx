@@ -256,8 +256,16 @@ export function RouteComponent() {
     '--focus-progress': String(progressRatio),
     '--focus-accent': accent,
   } as CSSProperties
+  const idlePhaseNote =
+    mode === 'pomodoro'
+      ? `Pomodoro will cycle ${formatMinutes(Number(focusMinutes))} focus, ${formatMinutes(Number(shortBreakMinutes))} short break, ${formatMinutes(Number(longBreakMinutes))} long break across ${Number(totalRounds)} rounds.`
+      : mode === 'count_down'
+        ? `Countdown will begin from ${formatDuration(Math.max(1, Number(durationMinutes) || 1) * 60)} and sync quietly with the backend while it runs.`
+        : 'Count up runs open-ended and is best for sessions you want to stop manually once the work feels complete.'
   const phaseNote =
-    timer?.mode === 'pomodoro'
+    !timer?.active
+      ? idlePhaseNote
+      : timer?.mode === 'pomodoro'
       ? timer.pomodoro_phase === 'break'
         ? 'Break window is active. The ring cools down until the next focus round.'
         : `Focus round ${timer.pomodoro_round ?? 1} of ${timer.pomodoro_total_rounds ?? Number(totalRounds)} is active.`
@@ -309,7 +317,17 @@ export function RouteComponent() {
           <div className="focus-orbit-board" style={orbitStyle}>
             <div className="focus-orbit-ring">
               <div className="focus-orbit-core">
-                <p className="focus-orbit-kicker">{timer?.active ? (timer.is_paused ? 'Paused' : 'Live session') : 'Ready state'}</p>
+                <p className="focus-orbit-kicker">
+                  {timer?.active
+                    ? timer.is_paused
+                      ? 'Paused'
+                      : 'Live session'
+                    : mode === 'count_down'
+                      ? 'Countdown ready'
+                      : mode === 'pomodoro'
+                        ? 'Pomodoro ready'
+                        : 'Count up ready'}
+                </p>
                 <p className="focus-orbit-time">{formatDuration(derived.displaySeconds)}</p>
                 <p className="focus-orbit-caption">{phaseNote}</p>
               </div>
@@ -344,7 +362,7 @@ export function RouteComponent() {
                     })
                   }}
                 >
-                  Start session
+                  {mode === 'count_down' ? 'Start countdown' : mode === 'pomodoro' ? 'Start pomodoro' : 'Start focus'}
                 </Button>
               ) : timer.is_paused ? (
                 <Button className="min-w-[148px]" onClick={() => resumeTimerMutation.mutate()}>
@@ -367,6 +385,65 @@ export function RouteComponent() {
                   Skip phase
                 </Button>
               ) : null}
+            </div>
+
+            <div className="focus-stage-config">
+              <div className="grid gap-3">
+                <p className="eyebrow">Timer mode</p>
+                <div className="focus-mode-switch">
+                  {[
+                    { value: 'count_up', label: 'Count up' },
+                    { value: 'count_down', label: 'Count down' },
+                    { value: 'pomodoro', label: 'Pomodoro' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`focus-mode-chip ${mode === option.value ? 'is-active' : ''}`}
+                      onClick={() => setMode(option.value as 'count_up' | 'count_down' | 'pomodoro')}
+                      disabled={Boolean(timer?.active)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="focus-inline-config-grid">
+                {mode === 'count_down' ? (
+                  <label className="grid gap-2 text-sm text-[rgba(255,255,255,0.72)]">
+                    Countdown length (minutes)
+                    <Input
+                      type="number"
+                      min={1}
+                      value={durationMinutes}
+                      className="focus-inline-input"
+                      onChange={(event) => setDurationMinutes(event.target.value)}
+                      disabled={Boolean(timer?.active)}
+                    />
+                  </label>
+                ) : (
+                  <div className="focus-inline-summary">
+                    <p className="eyebrow">Live preset</p>
+                    <p className="focus-inline-copy">
+                      {mode === 'pomodoro'
+                        ? `${formatMinutes(Number(focusMinutes))} focus, ${formatMinutes(Number(shortBreakMinutes))} short break, ${formatMinutes(Number(longBreakMinutes))} long break, ${Number(totalRounds)} rounds.`
+                        : 'Count up stays open-ended, then stores the measured focus time when you stop.'}
+                    </p>
+                  </div>
+                )}
+
+                <div className="focus-inline-summary">
+                  <p className="eyebrow">Current setup</p>
+                  <p className="focus-inline-copy">
+                    {mode === 'count_down'
+                      ? `A visible remaining-time run that begins at ${formatDuration(Math.max(1, Number(durationMinutes) || 1) * 60)} and lands in analytics once stored.`
+                      : mode === 'pomodoro'
+                        ? 'Alternates focus and break phases automatically while preserving low-power local timing.'
+                        : 'Best for unbounded deep work where you want total recorded time instead of a fixed endpoint.'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -442,23 +519,6 @@ export function RouteComponent() {
                 </div>
               </form>
 
-              <div className="focus-mode-switch">
-                {[
-                  { value: 'count_up', label: 'Count up' },
-                  { value: 'count_down', label: 'Count down' },
-                  { value: 'pomodoro', label: 'Pomodoro' },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`focus-mode-chip ${mode === option.value ? 'is-active' : ''}`}
-                    onClick={() => setMode(option.value as 'count_up' | 'count_down' | 'pomodoro')}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
               <div className="focus-form-grid">
                 <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
                   Subject
@@ -483,13 +543,6 @@ export function RouteComponent() {
                     ))}
                   </Select>
                 </label>
-
-                {mode === 'count_down' ? (
-                  <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-                    Duration (minutes)
-                    <Input type="number" min={1} value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} />
-                  </label>
-                ) : null}
 
                 {mode === 'pomodoro' ? (
                   <>

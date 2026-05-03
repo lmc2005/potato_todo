@@ -1002,3 +1002,37 @@ Release standard:
 - Maintenance notes: keep subject creation co-located with session setup unless the product later introduces a dedicated subjects route in v2; any future room-entry simplification should preserve the low-friction pairing between create and join
 - Future extension points: the Focus subject-creation card can later evolve into richer subject presets or goal-setting without changing the underlying subject creation contract
 - Known limitations / technical debt: Workspace still shows the subject list for visibility, so the product currently splits “create in Focus” and “review in Workspace” rather than consolidating all subject operations into one dedicated route
+
+### Entry 035
+
+- Feature name: analytics contract expansion and multi-signal editorial reporting surface
+- Phase: M4-M5
+- Purpose: promote Analytics from a minimal focus-total dashboard into a fuller operational report by exposing the complete backend stats contract and redesigning the front-end page around pacing, quality, concentration, goals, and session-shape analysis
+- User value: users can now read far more than total minutes; they get daily rhythm with rolling mean, task completion quality, subject distribution, goal attainment, task commitment ranking, session-length distribution, and a recent-session audit trail in one coherent page
+- APIs: no new endpoints were introduced; the work expands front-end consumption of the existing `/api/v2/analytics/stats` response and aligns `packages/contracts/src/index.ts` with the backend payload already produced by `app/services/stats.py`
+- Request/response summary: the shared `StatsPayload` now formally includes `task_completion_trend`, `task_ranking`, `goal_completion`, and `sessions`, so the web client can safely render all analytics modules from typed data without ad hoc casting or hidden fields
+- Frameworks/libraries used: React + TypeScript, TanStack Query, shared contracts workspace package, existing `@visx/xychart` chart stack, and the shared design system / CSS token layer
+- Implementation notes: rebuilt `apps/web/src/routes/analytics-page.tsx` into a multi-section editorial report; added derived statistical reads such as daily mean, median, standard deviation, concentration index, momentum delta, on-time execution rate, average session length, and session-duration buckets; added new chart surfaces for daily rhythm, task execution quality, subject mix, and task commitment; and reworked the surrounding layout in `apps/web/src/index.css` to support denser but still legible report composition
+- State transitions and edge cases: empty ranges now degrade by section instead of collapsing the whole page; charts fall back to section-specific empty states when there are no sessions, no dated tasks, or no subject goals; and the `Lead lane` headline now uses wrapping-safe presentation so long subject names do not overflow their card
+- Performance strategy: the heavier charting work stays route-local to Analytics, preserving the v2 rule that richer visual payloads only load where needed; there are still no global loops, canvas systems, or background polling introduced by this pass
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and the full repository test suite `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests` with `19 passed`
+- Maintenance notes: any future analytics expansion should first extend `StatsPayload` in the shared contracts package before the UI consumes new backend fields; derived statistics such as volatility or concentration should remain computed in one place in the route module unless they become shared enough to justify extraction
+- Future extension points: the current report can later add forecast-style pace projections, calendar-block adherence, overdue-task cohorting, or downloadable summaries without changing the core API surface if the backend keeps enriching the same stats endpoint
+- Known limitations / technical debt: Analytics is now much richer, but the heaviest front-end bundle remains the analytics route because of the charting surface area; if route complexity grows further, individual chart modules may need lazy internal splitting
+
+### Entry 036
+
+- Feature name: focus countdown surfacing and timer-mode stage refinement
+- Phase: M4-M5
+- Purpose: make `count_down` feel like a first-class focus mode in the v2 experience by moving mode selection into the hero-stage timing surface and by rewriting idle-state messaging so the timer explains what will happen before a session begins
+- User value: users no longer have to infer that countdown exists from a lower setup form; the main timer now clearly presents mode choice, countdown length, and per-mode behavior directly beneath the clock where the interaction naturally belongs
+- APIs: unchanged; the page still starts count-up and count-down sessions through `/api/v2/timer/start` and Pomodoro cycles through `/api/v2/timer/pomodoro/start`
+- Request/response summary: no payload contract changed; the improvements are purely in front-end orchestration and presentation of the existing `mode`, `duration_minutes`, and current-timer response fields
+- Frameworks/libraries used: React + TypeScript, TanStack Query mutations/queries, shared UI primitives, and the existing CSS-driven focus hero system
+- Implementation notes: moved the mode switch into the timer stage, added a dedicated countdown-length input directly under the clock, changed idle labels and notes to be mode-aware, updated the primary CTA copy to reflect the chosen mode, and kept subject/task linkage in the lower setup area so timer behavior and work-context binding remain visually separated
+- State transitions and edge cases: mode controls are disabled while a timer is active so the visual state cannot drift away from the live backend session; idle copy now distinguishes count-up, count-down, and Pomodoro semantics; and countdown duration remains validated by the existing numeric input constraints and backend rules
+- Performance strategy: no additional polling or animation loops were added; the timer still uses the same low-cost local ticking model with periodic backend reconciliation, and the new mode panel is static CSS/UI only
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and the full repository test suite `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests` with `19 passed`
+- Maintenance notes: future timer UX work should keep the rule that mode semantics are visible near the main clock, while lower forms should focus on linkage and optional advanced configuration; do not reintroduce server polling just to animate mode changes
+- Future extension points: countdown presets, audible milestones, or phase-aware ambient accents can be layered onto the same hero-stage configuration panel without changing the underlying timer API
+- Known limitations / technical debt: subject and task selectors still live below the hero-stage rather than directly under the clock, so the page now surfaces timer behavior clearly but still splits “mode” and “context binding” across two stacked sections
