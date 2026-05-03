@@ -233,6 +233,20 @@ uvicorn apps.api.potato_api.app:app --host 0.0.0.0 --port $PORT
 STUDY_DB_URL
 ```
 
+兼容规则：
+
+- 生产环境优先读取 `STUDY_DB_URL`
+- 如果未提供，则回退读取 `DATABASE_URL`
+- 如果两者都没有提供，应用会退回本地 SQLite
+
+这条规则非常重要：
+
+- 在 Render 线上如果退回 SQLite，账号、任务、专注记录等数据不会具备可靠持久性
+- 重新部署、重建服务、换实例后，你会看到“之前创建过账号，但现在无法再次登录”这类现象
+- 新版健康检查接口 `/api/v2/health` 现在会返回 `database_backend` 与 `database_source`
+  - 正常公网部署应看到 `database_backend=postgresql`
+  - 如果看到 `database_backend=sqlite`，说明当前 Render 服务没有正确连到 Supabase
+
 ### 5.2 ORM 与表模型来源
 
 当前 ORM 元数据与核心表定义位于：

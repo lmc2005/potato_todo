@@ -771,6 +771,13 @@
     padding-bottom: 2rem;
   }
 
+  .auth-form-deck-single {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .auth-form-card {
     border-radius: 40px;
     background:
@@ -780,6 +787,17 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.94),
       0 20px 40px rgba(18, 19, 26, 0.03);
+  }
+
+  .auth-form-switch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.9rem;
+    margin-top: 1.3rem;
+    border-top: 1px solid rgba(17, 19, 27, 0.08);
+    padding-top: 1.3rem;
   }
 
   .workspace-hero-intro {

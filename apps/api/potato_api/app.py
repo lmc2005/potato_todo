@@ -7,7 +7,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import settings
-from .core.db import init_db
+from .core.db import DATABASE_BACKEND, DATABASE_URL_SOURCE, init_db
 from .core.room_hub import RoomEventHub
 from .modules.analytics.router import router as analytics_router
 from .modules.assistant.router import router as assistant_router
@@ -53,7 +53,13 @@ def create_app() -> FastAPI:
 
     @api_v2.get("/health")
     def health():
-        return {"ok": True, "service": "api-v2", "environment": settings.app_env}
+        return {
+            "ok": True,
+            "service": "api-v2",
+            "environment": settings.app_env,
+            "database_backend": DATABASE_BACKEND,
+            "database_source": DATABASE_URL_SOURCE,
+        }
 
     app.include_router(api_v2)
     return app

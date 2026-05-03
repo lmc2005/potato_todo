@@ -1036,3 +1036,20 @@ Release standard:
 - Maintenance notes: future timer UX work should keep the rule that mode semantics are visible near the main clock, while lower forms should focus on linkage and optional advanced configuration; do not reintroduce server polling just to animate mode changes
 - Future extension points: countdown presets, audible milestones, or phase-aware ambient accents can be layered onto the same hero-stage configuration panel without changing the underlying timer API
 - Known limitations / technical debt: subject and task selectors still live below the hero-stage rather than directly under the clock, so the page now surfaces timer behavior clearly but still splits “mode” and “context binding” across two stacked sections
+
+### Entry 037
+
+- Feature name: auth surface single-mode rendering and deployment persistence guardrails
+- Phase: M3-M6
+- Purpose: stop the auth landing page from presenting sign-in and registration forms simultaneously, while also hardening deployment behavior so account persistence problems become easier to detect and less likely to happen silently in production
+- User value: the login experience now opens in a simpler sign-in-first state with a clear route into account creation, and operators can now verify whether production is truly writing users into Supabase instead of an ephemeral fallback database
+- APIs: front-end auth endpoints remain `/api/v2/auth/login`, `/api/v2/auth/register`, `/api/v2/auth/refresh`, and `/api/v2/auth/me`; the health endpoint `/api/v2/health` now additionally exposes non-sensitive storage diagnostics through `database_backend` and `database_source`
+- Request/response summary: no auth payload contracts changed; backend infrastructure now resolves database connectivity from `STUDY_DB_URL`, then `DATABASE_URL`, and only then falls back to SQLite, while health responses reveal which path is active
+- Frameworks/libraries used: existing React + TypeScript auth screen, FastAPI app factory, shared SQLAlchemy database layer, and project maintenance documentation
+- Implementation notes: rebuilt the auth route shell so `/login` renders only the sign-in form and `/register` renders only the account-creation form, keeping cross-navigation as an explicit action instead of a second visible form; updated `app/database.py` to normalize PostgreSQL URLs, accept both `STUDY_DB_URL` and `DATABASE_URL`, and log a production warning when SQLite fallback is active; exposed the active backend/source via `/api/v2/health`; and documented the persistence rule in the README plus maintenance handbook
+- State transitions and edge cases: existing accounts and auth session logic are unchanged; if hosting injects a standard `DATABASE_URL`, the backend now accepts it without requiring a parallel `STUDY_DB_URL`; and if neither variable is present, the service still boots locally via SQLite but now makes that fallback far more visible
+- Performance strategy: these changes add no meaningful runtime cost; the health diagnostics are constant metadata and the auth UI simplification slightly reduces front-end form work on initial render
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests`
+- Maintenance notes: for any public deployment, always verify `/api/v2/health` after release and confirm `database_backend` reports `postgresql`; if it reports `sqlite`, stop and fix the environment before trusting any user data
+- Future extension points: the same health diagnostic pattern can later expose migration state or read-only maintenance flags if operational visibility needs to improve further
+- Known limitations / technical debt: this pass makes misconfiguration much easier to detect, but it cannot retroactively recover accounts that were previously created inside an ephemeral SQLite container and then lost during service recreation

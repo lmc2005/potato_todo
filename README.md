@@ -245,6 +245,13 @@ STUDY_DB_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME
 
 Supabase 可以直接提供 PostgreSQL 连接串。
 
+部署注意：
+
+- 线上推荐显式设置 `STUDY_DB_URL`
+- 当前后端也兼容标准 `DATABASE_URL`
+- 如果两者都没配置，服务会退回 `sqlite:///./data/study.db`
+- 在 Render 线上退回 SQLite 时，账号与业务数据不能视为可靠持久化数据
+
 ## 首次使用
 
 1. 打开站点
