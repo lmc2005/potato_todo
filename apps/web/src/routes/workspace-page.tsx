@@ -242,7 +242,7 @@ export function RouteComponent() {
                 <div className="workspace-preview-hero">
                   <div className="space-y-3">
                     <p className="eyebrow">Weekly focus</p>
-                    <p className="workspace-preview-value">{stats ? formatMinutes(stats.total_minutes) : '0m'}</p>
+                    <p className="workspace-preview-value">{stats ? formatMinutes(stats.total_minutes) : formatMinutes(0)}</p>
                   </div>
                   <p className="workspace-preview-card-note">
                     {stats ? `${stats.session_count} study sessions are logged in the current range.` : 'Focus time will land here as the week starts to take shape.'}

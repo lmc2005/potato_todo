@@ -1053,3 +1053,37 @@ Release standard:
 - Maintenance notes: for any public deployment, always verify `/api/v2/health` after release and confirm `database_backend` reports `postgresql`; if it reports `sqlite`, stop and fix the environment before trusting any user data
 - Future extension points: the same health diagnostic pattern can later expose migration state or read-only maintenance flags if operational visibility needs to improve further
 - Known limitations / technical debt: this pass makes misconfiguration much easier to detect, but it cannot retroactively recover accounts that were previously created inside an ephemeral SQLite container and then lost during service recreation
+
+### Entry 038
+
+- Feature name: focus-time display normalization to whole-minute `xh xm` format
+- Phase: M3-M5
+- Purpose: remove decimal-based focus-time presentation across the v2 app and make all visible focus-duration readouts use one calm, consistent `xh xm` format
+- User value: focus totals, session lengths, countdown-related summaries, subject focus totals, and analytics duration readouts now look more polished and easier to scan because they no longer mix raw minutes, decimals, and hour/minute hybrids
+- APIs: unchanged; this is a presentation-layer normalization only, with all existing duration payloads continuing to arrive as numeric minutes or seconds from the current API contracts
+- Request/response summary: no DTO changes; the front-end now rounds display-level minute values to whole minutes and renders them through a shared formatter instead of scattered inline `toFixed(1)` strings
+- Frameworks/libraries used: shared front-end date/formatting utilities, React route components, and the existing v2 analytics/workspace/focus UI layers
+- Implementation notes: updated `apps/web/src/shared/lib/date.ts` so `formatMinutes()` always returns `xh xm` and added `formatSignedMinutes()` for delta-style readouts; replaced manual decimal minute strings in `apps/web/src/routes/analytics-page.tsx`; updated analytics chart y-axis labels and tooltips to use the same formatter; switched the `Focus` hero clock and countdown/counted-time copy to the same whole-minute display rule; and removed the remaining `0m` hardcoded fallback in `apps/web/src/routes/workspace-page.tsx`
+- State transitions and edge cases: values under one hour now intentionally display as `0h Xm`; zero-duration fallbacks display as `0h 0m`; and signed comparisons such as analytics momentum preserve their sign while still using the shared whole-minute formatter
+- Performance strategy: no runtime cost beyond trivial string formatting; the change reduces presentation inconsistency without altering query frequency, chart density, or backend behavior
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck` and `corepack pnpm --filter @potato/web build`
+- Maintenance notes: any new focus-duration UI must use the shared formatter utilities rather than hand-formatting minutes in route components, especially inside analytics cards, tooltips, and summary pills
+- Future extension points: if product later needs locale-sensitive time copy, the formatter can be extended centrally without revisiting each route component
+- Known limitations / technical debt: analytics still computes some intermediate statistics at decimal precision internally for analysis quality, but those decimals are now intentionally hidden from the user-facing duration presentation
+
+### Entry 039
+
+- Feature name: analytics subject-mix pie separation, settings connection unlock, and focus-clock exception handling
+- Phase: M3-M5
+- Purpose: align three product-level behaviors with the latest UX direction by turning `Subject Mix` into a dedicated full-width pie-based analysis section, fixing the overly aggressive Agent connection lock in Settings, and restoring `HH:MM:SS` only for the live focus clock while keeping summary metrics in `xh xm`
+- User value: Analytics now reads more clearly because task execution and subject distribution are no longer crowded into the same side stack; Settings once again allows direct Base URL / API key editing in the common “default env values only” deployment case; and the live timer regains second-level readability without reintroducing noisy time formatting into dashboards and totals
+- APIs: no endpoint surface changed; `/api/v2/settings/llm` continues to serve the same contract, but the backend now computes `managed_by_environment` with default-aware semantics instead of blindly locking on any prefilled render-time defaults
+- Request/response summary: no DTO changes were required; the front-end consumes the same analytics and settings payloads, while the backend settings payload now more accurately reports when environment management is truly active
+- Frameworks/libraries used: existing React + TypeScript analytics/settings/focus routes, shared formatting utilities, CSS-only pie visualization via `conic-gradient`, and the current FastAPI settings service layer
+- Implementation notes: removed the old subject-mix bar-chart card from the analytics side stack and replaced it with a standalone full-width pie section plus color legend/progress rows; refined `app/services/settings.py` so default values like `OPENAI_BASE_URL=https://api.openai.com/v1`, `AI_ENABLED=false`, and stock model/reasoning defaults no longer lock the settings form; updated the API key input to use password-style entry; and restored `formatDuration()` only for the `Focus` hero clock while preserving `xh xm` formatting for summaries, totals, and analytics
+- State transitions and edge cases: when no subject data exists, the new pie section degrades to a dedicated empty state; when only default environment values are present, saved LLM connection settings now remain editable and visible; and if a real environment override such as a non-default API key or custom endpoint is present, the Settings form still intentionally stays locked
+- Performance strategy: the new subject pie avoids heavy chart primitives and uses a low-cost CSS conic gradient; the settings unlock changes are pure configuration logic; and the focus-clock exception restores per-second readability without altering timer polling or sync cadence
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests` with `19 passed`
+- Maintenance notes: future analytics visual changes should preserve the separation between execution-quality analysis and subject-distribution analysis; settings-management logic should continue distinguishing “default fallback env values” from “intentional env ownership”; and the `HH:MM:SS` clock format should remain limited to the live timer surface unless product explicitly expands that exception
+- Future extension points: the pie section can later evolve into interactive slice hover/focus behavior, and settings can gain field-level environment ownership badges if the deployment matrix becomes more complex
+- Known limitations / technical debt: the subject-mix pie is currently a CSS-rendered visualization rather than a semantic chart component, so if deep accessibility or export requirements grow later, it may need a richer chart implementation

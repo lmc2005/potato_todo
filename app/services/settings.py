@@ -19,6 +19,8 @@ DEFAULT_USER_SETTINGS = {
     "theme": "glass",
 }
 
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+
 
 def get_setting(db: Session, key: str, default: str | None = None) -> str | None:
     setting = db.get(Setting, key)
@@ -96,6 +98,12 @@ def get_site_ai_config(db: Session) -> dict[str, Any]:
     env_reasoning = os.getenv("OPENAI_REASONING_EFFORT") or ""
     enabled_env = os.getenv("AI_ENABLED")
 
+    env_base_url_managed = bool(env_base_url and env_base_url != DEFAULT_OPENAI_BASE_URL)
+    env_api_key_managed = bool(env_api_key)
+    env_model_managed = bool(env_model and env_model != DEFAULT_USER_SETTINGS["llm_model"])
+    env_reasoning_managed = bool(env_reasoning and env_reasoning != DEFAULT_USER_SETTINGS["llm_reasoning_effort"])
+    enabled_env_managed = enabled_env is not None and _truthy(enabled_env, default=False)
+
     legacy_base_url = (get_setting(db, "llm_base_url", "") or "").rstrip("/")
     legacy_api_key = get_setting(db, "llm_api_key", "") or ""
     legacy_model = get_setting(db, "llm_model", DEFAULT_USER_SETTINGS["llm_model"]) or DEFAULT_USER_SETTINGS["llm_model"]
@@ -104,11 +112,11 @@ def get_site_ai_config(db: Session) -> dict[str, Any]:
         or DEFAULT_USER_SETTINGS["llm_reasoning_effort"]
     )
 
-    base_url = env_base_url or legacy_base_url
+    base_url = env_base_url if env_base_url_managed or env_api_key_managed else (legacy_base_url or env_base_url)
     api_key = env_api_key or legacy_api_key
-    model = env_model or legacy_model
-    reasoning_effort = env_reasoning or legacy_reasoning
-    enabled = _truthy(enabled_env, default=bool(base_url and api_key)) if enabled_env is not None else bool(base_url and api_key)
+    model = env_model if env_model_managed else legacy_model
+    reasoning_effort = env_reasoning if env_reasoning_managed else legacy_reasoning
+    enabled = True if enabled_env_managed else bool(base_url and api_key)
 
     return {
         "enabled": enabled,
@@ -116,7 +124,13 @@ def get_site_ai_config(db: Session) -> dict[str, Any]:
         "api_key": api_key,
         "model": model or DEFAULT_USER_SETTINGS["llm_model"],
         "reasoning_effort": reasoning_effort or DEFAULT_USER_SETTINGS["llm_reasoning_effort"],
-        "managed_by_environment": bool(env_base_url or env_api_key or env_model or env_reasoning or enabled_env is not None),
+        "managed_by_environment": bool(
+            env_base_url_managed
+            or env_api_key_managed
+            or env_model_managed
+            or env_reasoning_managed
+            or enabled_env_managed
+        ),
     }
 
 

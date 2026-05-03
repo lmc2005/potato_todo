@@ -33,12 +33,16 @@ export function formatDuration(totalSeconds: number) {
 }
 
 export function formatMinutes(totalMinutes: number) {
-  if (totalMinutes < 60) {
-    return `${totalMinutes}m`
-  }
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
+  const safe = Math.max(0, Math.round(Number(totalMinutes) || 0))
+  const hours = Math.floor(safe / 60)
+  const minutes = safe % 60
+  return `${hours}h ${minutes}m`
+}
+
+export function formatSignedMinutes(totalMinutes: number) {
+  const safe = Number(totalMinutes) || 0
+  const sign = safe > 0 ? '+' : safe < 0 ? '-' : ''
+  return `${sign}${formatMinutes(Math.abs(safe))}`
 }
 
 export function formatPercent(value: number) {

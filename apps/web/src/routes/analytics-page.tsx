@@ -6,14 +6,13 @@ import { useState } from 'react'
 import { loadStats } from '@/features/workspace/api'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
 import { Button, EmptyState, InlineMessage, Input } from '@/shared/components/ui'
-import { formatDetailedDate, formatMinutes, getWindowRange } from '@/shared/lib/date'
+import { formatDetailedDate, formatMinutes, formatSignedMinutes, getWindowRange } from '@/shared/lib/date'
 import { describeError } from '@/shared/lib/errors'
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 type DailyPoint = StatsPayload['daily_trend'][number]
 type CompletionPoint = StatsPayload['task_completion_trend'][number]
-type SubjectPoint = StatsPayload['subject_breakdown'][number]
 type TaskPoint = StatsPayload['task_ranking'][number]
 type SessionPoint = StatsPayload['sessions'][number]
 
@@ -37,16 +36,6 @@ function formatRateDetailed(value: number | null | undefined) {
     return '--'
   }
   return `${(value * 100).toFixed(1)}%`
-}
-
-function formatReadableMinutes(value: number) {
-  const safe = Math.max(0, Number(value) || 0)
-  if (safe < 60) {
-    return `${safe.toFixed(1)}m`
-  }
-  const hours = Math.floor(safe / 60)
-  const minutes = safe - hours * 60
-  return minutes >= 0.1 ? `${hours}h ${minutes.toFixed(1)}m` : `${hours}h`
 }
 
 function average(values: number[]) {
@@ -121,11 +110,11 @@ function momentumLabel(delta: number) {
 
 function buildSessionBuckets(rows: SessionPoint[]) {
   const buckets = [
-    { label: '0-25m', min: 0, max: 25 },
-    { label: '25-50m', min: 25, max: 50 },
-    { label: '50-90m', min: 50, max: 90 },
-    { label: '90-150m', min: 90, max: 150 },
-    { label: '150m+', min: 150, max: Number.POSITIVE_INFINITY },
+    { min: 0, max: 25 },
+    { min: 25, max: 50 },
+    { min: 50, max: 90 },
+    { min: 90, max: 150 },
+    { min: 150, max: Number.POSITIVE_INFINITY },
   ]
 
   return buckets.map((bucket) => {
@@ -133,8 +122,41 @@ function buildSessionBuckets(rows: SessionPoint[]) {
       const minutes = row.focus_seconds / 60
       return minutes >= bucket.min && minutes < bucket.max
     }).length
-    return { ...bucket, count }
+    return {
+      ...bucket,
+      label:
+        bucket.max === Number.POSITIVE_INFINITY
+          ? `${formatMinutes(bucket.min)}+`
+          : `${formatMinutes(bucket.min)}-${formatMinutes(bucket.max)}`,
+      count,
+    }
   })
+}
+
+function buildSubjectPieBackground(rows: StatsPayload['subject_breakdown']) {
+  if (rows.length === 0) {
+    return 'conic-gradient(rgba(17,19,27,0.08) 0deg 360deg)'
+  }
+
+  const totalMinutes = rows.reduce((sum, row) => sum + Math.max(row.minutes, 0), 0)
+  if (totalMinutes <= 0) {
+    return 'conic-gradient(rgba(17,19,27,0.08) 0deg 360deg)'
+  }
+
+  let currentTurn = 0
+  const stops = rows.map((row) => {
+    const ratio = Math.max(row.minutes, 0) / totalMinutes
+    const start = currentTurn * 360
+    currentTurn += ratio
+    const end = currentTurn * 360
+    return `${row.color} ${start}deg ${end}deg`
+  })
+
+  if (currentTurn < 1) {
+    stops.push(`rgba(17,19,27,0.08) ${currentTurn * 360}deg 360deg`)
+  }
+
+  return `conic-gradient(${stops.join(', ')})`
 }
 
 function sumCompletion(rows: CompletionPoint[]) {
@@ -188,6 +210,7 @@ export function RouteComponent() {
   const trendTickValues = buildTickValues(dailyTrend)
   const completionTickValues = buildTickValues(taskCompletionTrend)
   const recentSessions = [...sessions].sort((left, right) => right.started_at.localeCompare(left.started_at)).slice(0, 5)
+  const subjectPieBackground = buildSubjectPieBackground(subjectBreakdown)
 
   return (
     <div className="analytics-page grid gap-8">
@@ -236,7 +259,7 @@ export function RouteComponent() {
               <p className="analytics-inline-title">{leadSubject?.name ?? 'Waiting for tracked focus'}</p>
               <p className="analytics-inline-copy">
                 {leadSubject
-                  ? `${Math.round(leadSubject.share * 100)}% of the window is currently anchored in ${leadSubject.name}, with ${leadSubject.minutes.toFixed(1)} recorded minutes.`
+                  ? `${Math.round(leadSubject.share * 100)}% of the window is currently anchored in ${leadSubject.name}, with ${formatMinutes(leadSubject.minutes)} recorded focus.`
                   : 'Start a few focus sessions and the leading lane, concentration, and execution quality will populate automatically.'}
               </p>
             </div>
@@ -256,13 +279,13 @@ export function RouteComponent() {
 
           <article className="analytics-stat-card analytics-kpi-card">
             <p className="eyebrow">Daily mean</p>
-            <p className="analytics-kpi-value">{formatReadableMinutes(meanDailyMinutes)}</p>
-            <p className="analytics-kpi-copy">{formatRateDetailed(activeDayRate)} of days are active, with a median of {formatReadableMinutes(medianDailyMinutes)}.</p>
+            <p className="analytics-kpi-value">{formatMinutes(meanDailyMinutes)}</p>
+            <p className="analytics-kpi-copy">{formatRateDetailed(activeDayRate)} of days are active, with a median of {formatMinutes(medianDailyMinutes)}.</p>
           </article>
 
           <article className="analytics-stat-card analytics-kpi-card">
             <p className="eyebrow">Volatility</p>
-            <p className="analytics-kpi-value">{formatReadableMinutes(volatility)}</p>
+            <p className="analytics-kpi-value">{formatMinutes(volatility)}</p>
             <p className="analytics-kpi-copy">Standard deviation of daily focus minutes, used here as a stability signal for workload spread.</p>
           </article>
 
@@ -320,7 +343,11 @@ export function RouteComponent() {
                           dy: 12,
                         })}
                       />
-                      <AnimatedAxis orientation="left" tickLabelProps={() => ({ fill: 'rgba(92,102,118,0.86)', fontSize: 11 })} />
+                      <AnimatedAxis
+                        orientation="left"
+                        tickFormat={(value) => formatMinutes(Number(value))}
+                        tickLabelProps={() => ({ fill: 'rgba(92,102,118,0.86)', fontSize: 11 })}
+                      />
                       <AnimatedAreaSeries
                         dataKey="Focus minutes"
                         data={dailyTrend}
@@ -347,8 +374,8 @@ export function RouteComponent() {
                           return (
                             <div className="analytics-tooltip">
                               <p>{formatAxisDate(focusPoint?.date ?? averagePoint?.date ?? '')}</p>
-                              <p className="analytics-tooltip-emphasis">{focusPoint ? `${focusPoint.minutes.toFixed(1)} minutes` : '--'}</p>
-                              <p>{averagePoint ? `3-day mean ${averagePoint.average.toFixed(1)}m` : 'Rolling mean unavailable'}</p>
+                              <p className="analytics-tooltip-emphasis">{focusPoint ? formatMinutes(focusPoint.minutes) : '--'}</p>
+                              <p>{averagePoint ? `3-day mean ${formatMinutes(averagePoint.average)}` : 'Rolling mean unavailable'}</p>
                             </div>
                           )
                         }}
@@ -366,17 +393,17 @@ export function RouteComponent() {
                 <div className="analytics-reading-grid">
                   <div className="analytics-reading-card">
                     <p className="eyebrow">Average day</p>
-                    <p className="analytics-reading-value">{formatReadableMinutes(meanDailyMinutes)}</p>
+                    <p className="analytics-reading-value">{formatMinutes(meanDailyMinutes)}</p>
                     <p className="analytics-kpi-copy">Average daily focus across the selected range.</p>
                   </div>
                   <div className="analytics-reading-card">
                     <p className="eyebrow">Session median</p>
-                    <p className="analytics-reading-value">{formatReadableMinutes(medianSessionMinutes)}</p>
+                    <p className="analytics-reading-value">{formatMinutes(medianSessionMinutes)}</p>
                     <p className="analytics-kpi-copy">Typical session size, less distorted by outliers than a mean.</p>
                   </div>
                   <div className="analytics-reading-card">
                     <p className="eyebrow">Momentum shift</p>
-                    <p className="analytics-reading-value">{momentumDelta >= 0 ? '+' : ''}{momentumDelta.toFixed(1)}m</p>
+                    <p className="analytics-reading-value">{formatSignedMinutes(momentumDelta)}</p>
                     <p className="analytics-kpi-copy">Difference between the later half and earlier half of the current window.</p>
                   </div>
                 </div>
@@ -459,80 +486,53 @@ export function RouteComponent() {
               )}
             </article>
 
-            <article className="analytics-subject-card">
-              <div className="analytics-section-head">
-                <div>
-                  <p className="eyebrow">Subject mix</p>
-                  <h2 className="analytics-section-title">Distribution of minutes across active study lanes.</h2>
+          </aside>
+        </section>
+      </ScrollReveal>
+
+      <ScrollReveal delayMs={140}>
+        <section className="analytics-subject-stage">
+          <div className="analytics-section-head">
+            <div>
+              <p className="eyebrow">Subject mix</p>
+              <h2 className="analytics-section-title">Distribution of focus across active study lanes.</h2>
+            </div>
+          </div>
+
+          {!stats || subjectBreakdown.length === 0 ? (
+            <EmptyState title="No subject breakdown yet" description="Once focus is tracked against subjects, this section will show the week’s distribution with one color per lane." />
+          ) : (
+            <div className="analytics-pie-layout">
+              <div className="analytics-pie-shell">
+                <div className="analytics-pie-chart" style={{ background: subjectPieBackground }}>
+                  <div className="analytics-pie-core">
+                    <p className="eyebrow">Lead lane</p>
+                    <p className="analytics-inline-title">{leadSubject?.name ?? 'Waiting for signal'}</p>
+                    <p className="analytics-kpi-copy">
+                      {leadSubject ? `${formatRateDetailed(leadSubject.share)} of tracked focus` : 'No subject has emerged yet.'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {!stats || subjectBreakdown.length === 0 ? (
-                <EmptyState title="No subject breakdown yet" description="Once focus is tracked against subjects, this panel will show distribution, concentration, and time spent per lane." />
-              ) : (
-                <div className="grid gap-4">
-                  <div className="analytics-chart-frame">
-                    <div className="h-[260px]">
-                      <XYChart
-                        height={260}
-                        xScale={{ type: 'band' }}
-                        yScale={{ type: 'linear' }}
-                        margin={{ top: 16, right: 16, bottom: 56, left: 54 }}
-                      >
-                        <AnimatedGrid columns={false} numTicks={4} lineStyle={{ stroke: 'rgba(20,27,42,0.08)' }} />
-                        <AnimatedAxis
-                          orientation="bottom"
-                          tickFormat={(value) => truncateLabel(String(value), 10)}
-                          tickLabelProps={() => ({
-                            fill: 'rgba(92,102,118,0.86)',
-                            fontSize: 10.5,
-                            textAnchor: 'middle',
-                            dy: 12,
-                          })}
-                        />
-                        <AnimatedAxis orientation="left" tickLabelProps={() => ({ fill: 'rgba(92,102,118,0.86)', fontSize: 11 })} />
-                        <AnimatedBarSeries
-                          dataKey="Subject minutes"
-                          data={subjectBreakdown}
-                          xAccessor={(datum) => datum.name}
-                          yAccessor={(datum) => datum.minutes}
-                        />
-                        <Tooltip
-                          renderTooltip={({ tooltipData }) => {
-                            const row = tooltipData?.nearestDatum?.datum as SubjectPoint | undefined
-                            if (!row) {
-                              return null
-                            }
-                            return (
-                              <div className="analytics-tooltip">
-                                <p>{row.name}</p>
-                                <p className="analytics-tooltip-emphasis">{row.minutes.toFixed(1)} minutes</p>
-                                <p>{formatRateDetailed(row.share)} of tracked focus</p>
-                              </div>
-                            )
-                          }}
-                        />
-                      </XYChart>
+              <div className="analytics-pie-legend">
+                {subjectBreakdown.map((item) => (
+                  <div key={`${item.subject_id}-${item.name}`} className="analytics-pie-row">
+                    <div className="analytics-progress-head">
+                      <div className="flex items-center gap-3">
+                        <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        <p className="font-medium text-[#11131b]">{item.name}</p>
+                      </div>
+                      <span className="text-sm text-[#6e6e73]">{formatMinutes(item.minutes)} · {formatRate(item.share)}</span>
+                    </div>
+                    <div className="analytics-progress-track">
+                      <div className="analytics-progress-fill" style={{ width: `${Math.max(item.share * 100, 4)}%`, background: item.color }} />
                     </div>
                   </div>
-
-                  <div className="analytics-note-list">
-                    {subjectBreakdown.map((item) => (
-                      <div key={`${item.subject_id}-${item.name}`} className="analytics-note-row">
-                        <div className="flex items-center gap-3">
-                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-                          <span className="font-medium text-[#1d1d1f]">{item.name}</span>
-                        </div>
-                        <span className="text-sm text-[#6e6e73]">
-                          {item.minutes.toFixed(1)}m · {formatRate(item.share)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </article>
-          </aside>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       </ScrollReveal>
 
@@ -567,7 +567,7 @@ export function RouteComponent() {
                         <div>
                           <p className="font-medium text-[#11131b]">{item.name}</p>
                           <p className="text-sm text-[#6e6e73]">
-                            {item.minutes.toFixed(1)}m of {item.target_minutes.toFixed(1)}m
+                            {formatMinutes(item.minutes)} of {formatMinutes(item.target_minutes)}
                           </p>
                         </div>
                         <span className="analytics-day-pill">{formatRateDetailed(item.completion)}</span>
@@ -616,7 +616,11 @@ export function RouteComponent() {
                           dy: 12,
                         })}
                       />
-                      <AnimatedAxis orientation="left" tickLabelProps={() => ({ fill: 'rgba(92,102,118,0.86)', fontSize: 11 })} />
+                      <AnimatedAxis
+                        orientation="left"
+                        tickFormat={(value) => formatMinutes(Number(value))}
+                        tickLabelProps={() => ({ fill: 'rgba(92,102,118,0.86)', fontSize: 11 })}
+                      />
                       <AnimatedBarSeries
                         dataKey="Task minutes"
                         data={taskRanking.slice(0, 6)}
@@ -632,7 +636,7 @@ export function RouteComponent() {
                           return (
                             <div className="analytics-tooltip">
                               <p>{row.title}</p>
-                              <p className="analytics-tooltip-emphasis">{row.minutes.toFixed(1)} minutes</p>
+                              <p className="analytics-tooltip-emphasis">{formatMinutes(row.minutes)}</p>
                             </div>
                           )
                         }}
@@ -648,7 +652,7 @@ export function RouteComponent() {
                         <p className="font-medium text-[#11131b]">
                           {index + 1}. {item.title}
                         </p>
-                        <p className="text-sm text-[#6e6e73]">{item.minutes.toFixed(1)}m committed</p>
+                        <p className="text-sm text-[#6e6e73]">{formatMinutes(item.minutes)} committed</p>
                       </div>
                       <span className="analytics-day-pill">{truncateLabel(item.title, 8)}</span>
                     </div>
@@ -676,11 +680,11 @@ export function RouteComponent() {
               <>
                 <div className="analytics-goal-summary">
                   <div>
-                    <p className="analytics-reading-value">{formatReadableMinutes(averageSessionMinutes)}</p>
+                    <p className="analytics-reading-value">{formatMinutes(averageSessionMinutes)}</p>
                     <p className="analytics-kpi-copy">average session length</p>
                   </div>
                   <div>
-                    <p className="analytics-reading-value">{formatReadableMinutes(medianSessionMinutes)}</p>
+                    <p className="analytics-reading-value">{formatMinutes(medianSessionMinutes)}</p>
                     <p className="analytics-kpi-copy">median session length</p>
                   </div>
                 </div>
@@ -723,7 +727,7 @@ export function RouteComponent() {
                         {session.subject} · {session.task ?? 'Open session'}
                       </p>
                       <p className="text-sm text-[#6e6e73]">
-                        {formatDetailedDate(session.started_at)} · {formatReadableMinutes(session.focus_seconds / 60)}
+                        {formatDetailedDate(session.started_at)} · {formatMinutes(session.focus_seconds / 60)}
                       </p>
                     </div>
                     <div className="analytics-session-meta">
@@ -751,7 +755,7 @@ export function RouteComponent() {
               {topFocusDays.map((item) => (
                 <div key={item.date} className="analytics-reading-card">
                   <p className="eyebrow">{formatAxisDate(item.date)}</p>
-                  <p className="analytics-reading-value">{formatReadableMinutes(item.minutes)}</p>
+                  <p className="analytics-reading-value">{formatMinutes(item.minutes)}</p>
                   <p className="analytics-kpi-copy">{item.minutes >= 120 ? 'Deep-focus day with sustained volume.' : 'A lighter but still meaningful study pulse.'}</p>
                 </div>
               ))}

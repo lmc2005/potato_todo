@@ -206,6 +206,8 @@ export function RouteComponent() {
               <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
                 Access key
                 <Input
+                  type="password"
+                  autoComplete="off"
                   value={currentConnection.apiKey}
                   disabled={assistantSettings?.managed_by_environment}
                   onChange={(event) =>

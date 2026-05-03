@@ -260,7 +260,7 @@ export function RouteComponent() {
     mode === 'pomodoro'
       ? `Pomodoro will cycle ${formatMinutes(Number(focusMinutes))} focus, ${formatMinutes(Number(shortBreakMinutes))} short break, ${formatMinutes(Number(longBreakMinutes))} long break across ${Number(totalRounds)} rounds.`
       : mode === 'count_down'
-        ? `Countdown will begin from ${formatDuration(Math.max(1, Number(durationMinutes) || 1) * 60)} and sync quietly with the backend while it runs.`
+        ? `Countdown will begin from ${formatMinutes(Math.max(1, Number(durationMinutes) || 1))} and sync quietly with the backend while it runs.`
         : 'Count up runs open-ended and is best for sessions you want to stop manually once the work feels complete.'
   const phaseNote =
     !timer?.active
@@ -270,8 +270,8 @@ export function RouteComponent() {
         ? 'Break window is active. The ring cools down until the next focus round.'
         : `Focus round ${timer.pomodoro_round ?? 1} of ${timer.pomodoro_total_rounds ?? Number(totalRounds)} is active.`
       : timer?.remaining_seconds != null
-        ? `${formatDuration(derived.remainingSeconds ?? 0)} remaining in the current countdown.`
-        : `${formatDuration(derived.elapsedSeconds)} recorded in this live session.`
+        ? `${formatMinutes((derived.remainingSeconds ?? 0) / 60)} remaining in the current countdown.`
+        : `${formatMinutes(derived.elapsedSeconds / 60)} recorded in this live session.`
   const stageChips = [
     timer?.active ? timerStatusLabel(timer) : `Mode ${mode.replace('_', ' ')}`,
     timer?.active ? `Subject ${activeSubject?.name ?? 'Unlinked'}` : `Setup ${selectedSubject?.name ?? 'pick a subject'}`,
@@ -437,7 +437,7 @@ export function RouteComponent() {
                   <p className="eyebrow">Current setup</p>
                   <p className="focus-inline-copy">
                     {mode === 'count_down'
-                      ? `A visible remaining-time run that begins at ${formatDuration(Math.max(1, Number(durationMinutes) || 1) * 60)} and lands in analytics once stored.`
+                      ? `A visible remaining-time run that begins at ${formatMinutes(Math.max(1, Number(durationMinutes) || 1))} and lands in analytics once stored.`
                       : mode === 'pomodoro'
                         ? 'Alternates focus and break phases automatically while preserving low-power local timing.'
                         : 'Best for unbounded deep work where you want total recorded time instead of a fixed endpoint.'}
