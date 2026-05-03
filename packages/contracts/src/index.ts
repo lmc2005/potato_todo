@@ -143,6 +143,7 @@ export type ApiStats = { stats: StatsPayload }
 export type ApiResult<T> = { result: T }
 
 export type LlmSettings = {
+  enabled?: boolean
   base_url: string | null
   api_key: string | null
   model: string | null

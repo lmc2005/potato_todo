@@ -205,8 +205,8 @@ export function RouteComponent() {
               <Link to="/app/focus" className="btn-base btn-primary">
                 Start focus
               </Link>
-              <Link to="/app/planner" className="btn-base btn-secondary">
-                Open planner
+              <Link to="/app/agent" className="btn-base btn-secondary">
+                Open agent
               </Link>
             </div>
             <div className="hero-meta-strip">

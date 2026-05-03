@@ -900,3 +900,71 @@ Release standard:
 - Maintenance notes: this handbook should be updated whenever deployment topology, database ownership, environment contracts, or the frontend-to-backend routing strategy changes
 - Future extension points: once the ORM and migrations are fully pulled into `apps/api`, this handbook can be simplified by removing the current compatibility-layer warnings and replacing them with a cleaner single-source persistence model
 - Known limitations / technical debt: the system is now much better documented, but the architecture still carries a deliberate transitional dependency on root-level legacy persistence code that maintainers must continue to respect
+
+### Entry 029
+
+- Feature name: route-level layout de-homogenization for Focus, Analytics, Rooms, and Settings
+- Phase: M3-M5
+- Purpose: remove the repeated `header + similar dual-panel` composition pattern across the non-Workspace routes so each product area communicates a different job, density level, and interaction grammar
+- User value: each page now feels like a distinct workspace instead of a themed clone; Focus reads as an immersive timer studio, Analytics as an editorial data readout, Rooms as a live lobby plus room monitor, and Settings as an operations console
+- APIs: unchanged; all existing `/api/v2/focus`, `/api/v2/analytics`, `/api/v2/rooms`, `/api/v2/settings`, and shared workspace data contracts remain intact
+- Request/response summary: no DTO or payload changes were required for this pass; the restructuring is entirely in front-end presentation, query usage, and local state orchestration
+- Frameworks/libraries used: existing React + TypeScript frontend, TanStack Query, shared UI primitives, shared CSS token system, and current `visx` chart stack
+- Implementation notes: rebuilt the four route shells with page-specific hero compositions and dedicated CSS modules inside `apps/web/src/index.css`; Focus now uses an immersive timer stage with a ring-based dial, Analytics uses a large editorial metrics masthead plus asymmetric chart stack, Rooms splits into lobby/live-view columns, and Settings is separated into connection/rhythm/recovery operating zones
+- State transitions and edge cases: all data still flows through the same query keys and mutation endpoints; the main edge handling added here is clearer empty/error states on the new route shells so blank datasets or failed queries do not collapse the page structure
+- Performance strategy: the redesign keeps the low-idle rule by relying on static gradients, single-surface depth, and existing reveal transitions only; no new global loops, polling systems, or canvas effects were introduced
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck` and `corepack pnpm --filter @potato/web build`
+- Maintenance notes: future route work should preserve the new rule that each major page gets its own information hierarchy and surface rhythm instead of inheriting one shared skeleton and only swapping the data inside it
+- Future extension points: if needed later, the repeated page-specific patterns can be extracted into higher-order route layout primitives such as `immersive-stage`, `editorial-analytics`, and `operations-console`
+- Known limitations / technical debt: this pass differentiates the major routes substantially, but Tasks and Calendar still live only in the legacy UI path and would need their own v2 route treatment when they are promoted into the new app surface
+
+### Entry 030
+
+- Feature name: Agent restoration, naming unification, and settings-boundary realignment
+- Phase: M4-M5
+- Purpose: restore the original v1 assistant workflow under the product name `Agent`, move model/reasoning controls back into the Agent surface, and reduce Settings to connection/defaults/recovery responsibilities
+- User value: the planning experience now matches user expectations more closely, because Agent again behaves like the place where model choice, reasoning depth, draft generation, and chat history actually live
+- APIs: unchanged endpoint surface on `/api/v2/assistant/*` and `/api/v2/settings/llm`; legacy `/assistant` HTML route remains available for compatibility, but the visible product naming is now `Agent`
+- Request/response summary: no contract changes; `Agent` still consumes daily quote, draft list, draft apply, chat sessions, chat detail, and chat send from the same v2 endpoints, while Settings only persists LLM connection and Pomodoro defaults
+- Frameworks/libraries used: React + TypeScript, TanStack Query, shared UI primitives, shared CSS token layer, FastAPI legacy templates for v1 compatibility, and existing contracts in `packages/contracts`
+- Implementation notes: kept the v2 Agent page as a two-mode `planning/chat` surface, added the missing custom CSS for all Agent-specific sections, renamed visible navigation and legacy template copy from `Assistant` to `Agent`, and simplified the v2 Settings page so it no longer duplicates model/reasoning controls already present in Agent
+- State transitions and edge cases: Agent buttons remain disabled when AI is unavailable; Settings disables local connection edits when the backend is managed by environment variables; legacy template and test text were updated so v1 compatibility checks still pass after the naming change
+- Performance strategy: no new runtime background work was introduced; the main benefit here is architectural clarity and lower operator confusion, not additional animation or rendering
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and legacy/v2 pytest coverage including the updated `/assistant` page assertion
+- Maintenance notes: keep the product name `Agent` consistent at the nav, page, test, and documentation layers; if the backend route prefix is ever renamed from `/assistant` to `/agent`, the frontend, legacy templates, and tests must be migrated in one coordinated change
+- Future extension points: internal file and module names can later be normalized from `planner`/`assistant` toward `agent` once the team is ready to do a pure naming cleanup without behavior changes
+- Known limitations / technical debt: the public UX now says `Agent`, but some internal file paths and backend module names still retain `assistant` for compatibility and to avoid broad non-functional churn in this pass
+
+### Entry 031
+
+- Feature name: Focus timer stage redesign and long-session interaction polish
+- Phase: M4-M5
+- Purpose: replace the overly simple Focus UI with a richer but still low-cost timer experience that better communicates state, phase, and active study context
+- User value: Focus now opens as a dedicated timer studio with a large ring-based clock, clearer session state, and more deliberate setup controls, making long study sessions feel more premium without becoming noisy
+- APIs: unchanged; the page still uses `/api/v2/timer/current`, `/api/v2/timer/start`, `/api/v2/timer/pause`, `/api/v2/timer/resume`, `/api/v2/timer/stop`, `/api/v2/timer/pomodoro/start`, `/api/v2/timer/pomodoro/skip`, `/api/v2/settings/pomodoro`, `/api/v2/subjects`, and `/api/v2/tasks`
+- Request/response summary: no payload changes; the new UI derives ring progress locally from the existing timer payload fields such as `elapsed_seconds`, `remaining_seconds`, `countdown_seconds`, `pomodoro_phase`, and round counters
+- Frameworks/libraries used: React + TypeScript, TanStack Query, shared UI primitives, and CSS custom properties for the progress ring
+- Implementation notes: rebuilt the route around a hero-stage layout, added a conic-gradient timer ring with accent changes for break vs focus vs countdown, preserved the existing low-frequency local ticking model, and kept the setup controls separate from the active timing surface to reduce visual competition
+- State transitions and edge cases: countdown and Pomodoro progress derive from remaining time; count-up mode uses a capped progress ratio for visual feedback; the page still re-syncs on visibility changes and on zero-remaining transitions to avoid local drift when a session completes in the background
+- Performance strategy: the timer remains event-driven and interval-based exactly as before, with only a 1-second local tick while visible and a 15-second backend reconciliation; the new visuals are CSS-only and do not add canvas or permanent animation loops
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and the v2 smoke suite covering timer start/pause/resume/stop
+- Maintenance notes: any future timer visual changes should continue to derive from the existing timer payload rather than introducing extra server polling just for UI smoothness
+- Future extension points: the ring stage can later support audible cues, phase-aware accent presets, or session summaries without changing the underlying timer contract
+- Known limitations / technical debt: the count-up ring uses a capped visual horizon for presentation, so extremely long open-ended sessions will eventually stop increasing the ring fill even though the elapsed time continues accurately in text
+
+### Entry 032
+
+- Feature name: verification expansion with v2 core smoke coverage and recovery-state sync
+- Phase: M2-M5
+- Purpose: harden confidence in the refactor by adding broader automated coverage for the v2 feature chain and by ensuring Settings-triggered recovery actions refresh dependent front-end queries
+- User value: critical flows such as subjects/tasks/calendar/timer/settings/rooms/backup/Agent are now validated more directly, and import/clear operations no longer leave the v2 UI showing stale data after high-impact changes
+- APIs: test coverage now explicitly exercises `/api/v2/subjects`, `/api/v2/tasks`, `/api/v2/calendar/events`, `/api/v2/timer/*`, `/api/v2/settings/*`, `/api/v2/rooms/*`, `/api/v2/backup/export`, and `/api/v2/assistant/*`
+- Request/response summary: no contract changes; the main behavioral addition is that the front-end Settings page now invalidates all affected query families after connection saves, Pomodoro saves, backup import, and data clear actions
+- Frameworks/libraries used: `pytest`, FastAPI `TestClient`, existing v2 app factory, TanStack Query invalidation, and monkeypatched assistant service calls for deterministic Agent smoke tests
+- Implementation notes: added `apps/api/tests/test_v2_core_smoke.py` to validate core end-to-end feature paths; updated the legacy assistant-page test to the new `Agent` product naming; and taught the v2 Settings page to invalidate workspace, analytics, subjects, focus, rooms, and settings query keys after destructive or high-impact operations
+- State transitions and edge cases: smoke tests avoid live LLM dependency by monkeypatching `call_llm` and `call_llm_text`; the front-end invalidation logic ensures imported or cleared data becomes visible on the next render instead of requiring a hard refresh
+- Performance strategy: test-only work adds no runtime overhead, and the extra query invalidation runs only after explicit user actions with high state impact
+- Test coverage: passed `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests` with `19 passed`, plus `corepack pnpm --filter @potato/web typecheck` and `corepack pnpm --filter @potato/web build`
+- Maintenance notes: every new v2 module should get at least one smoke-level path test that proves the browser-facing contract still works after refactors; any action that changes many datasets at once should invalidate all affected query families in the same change
+- Future extension points: add browser-level integration coverage for the v2 React app once a stable local automation harness is introduced
+- Known limitations / technical debt: current automated coverage is API-heavy and does not yet perform screenshot or DOM-level assertions against the rebuilt v2 frontend

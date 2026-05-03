@@ -61,10 +61,16 @@ const focusRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/focus-page'), 'RouteComponent'),
 })
 
-const plannerRoute = createRoute({
+const agentRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: 'agent',
+  component: lazyRouteComponent(() => import('@/routes/planner-page'), 'RouteComponent'),
+})
+
+const plannerLegacyRoute = createRoute({
   getParentRoute: () => appRoute,
   path: 'planner',
-  component: lazyRouteComponent(() => import('@/routes/planner-page'), 'RouteComponent'),
+  component: PlannerLegacyRedirect,
 })
 
 const analyticsRoute = createRoute({
@@ -89,7 +95,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   registerRoute,
-  appRoute.addChildren([workspaceRoute, focusRoute, plannerRoute, analyticsRoute, roomsRoute, settingsRoute]),
+  appRoute.addChildren([workspaceRoute, focusRoute, agentRoute, plannerLegacyRoute, analyticsRoute, roomsRoute, settingsRoute]),
 ])
 
 export const router = createRouter({
@@ -165,4 +171,8 @@ function ProtectedLayout() {
       <Outlet />
     </AppShell>
   )
+}
+
+function PlannerLegacyRedirect() {
+  return <Navigate to="/app/agent" />
 }

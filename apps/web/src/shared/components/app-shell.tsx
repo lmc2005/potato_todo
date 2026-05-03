@@ -9,7 +9,7 @@ import { cn } from '@/shared/lib/cn'
 const navigation = [
   { to: '/app/workspace', label: 'Workspace' },
   { to: '/app/focus', label: 'Focus' },
-  { to: '/app/planner', label: 'Planner' },
+  { to: '/app/agent', label: 'Agent' },
   { to: '/app/analytics', label: 'Analytics' },
   { to: '/app/rooms', label: 'Rooms' },
   { to: '/app/settings', label: 'Settings' },

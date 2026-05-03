@@ -1,10 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { clearBackup, exportBackup, importBackup, loadLlmSettings, loadPomodoroSettings, saveLlmSettings, savePomodoroSettings } from '@/features/settings/api'
 import { DialogPanel } from '@/shared/components/dialog-panel'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
-import { Button, EmptyState, InlineMessage, Input, MetricCard, PageHeader, Panel, SectionHeading } from '@/shared/components/ui'
+import { Button, EmptyState, InlineMessage, Input } from '@/shared/components/ui'
 import { describeError } from '@/shared/lib/errors'
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -17,12 +17,11 @@ function triggerDownload(blob: Blob, filename: string) {
 }
 
 export function RouteComponent() {
+  const client = useQueryClient()
   const [feedback, setFeedback] = useState<string | null>(null)
-  const [assistantDraft, setAssistantDraft] = useState<{
+  const [agentConnectionDraft, setAgentConnectionDraft] = useState<{
     baseUrl: string
     apiKey: string
-    model: string
-    reasoningEffort: string
   } | null>(null)
   const [pomodoroDraft, setPomodoroDraft] = useState<{
     focusMinutes: string
@@ -43,15 +42,36 @@ export function RouteComponent() {
     queryFn: loadPomodoroSettings,
   })
 
+  const invalidateOperationalQueries = async () => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ['llm-settings'] }),
+      client.invalidateQueries({ queryKey: ['settings-pomodoro'] }),
+      client.invalidateQueries({ queryKey: ['pomodoro-settings'] }),
+      client.invalidateQueries({ queryKey: ['workspace-overview'] }),
+      client.invalidateQueries({ queryKey: ['analytics'] }),
+      client.invalidateQueries({ queryKey: ['subjects'] }),
+      client.invalidateQueries({ queryKey: ['focus-tasks'] }),
+      client.invalidateQueries({ queryKey: ['rooms'] }),
+    ])
+  }
+
   const saveAssistantMutation = useMutation({
     mutationFn: saveLlmSettings,
-    onSuccess: () => setFeedback('Assistant setup saved.'),
+    onSuccess: async () => {
+      setFeedback('Agent connection saved.')
+      setAgentConnectionDraft(null)
+      await invalidateOperationalQueries()
+    },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const savePomodoroMutation = useMutation({
     mutationFn: savePomodoroSettings,
-    onSuccess: () => setFeedback('Focus rhythm saved.'),
+    onSuccess: async () => {
+      setFeedback('Focus rhythm saved.')
+      setPomodoroDraft(null)
+      await invalidateOperationalQueries()
+    },
     onError: (error) => setFeedback(describeError(error)),
   })
 
@@ -68,28 +88,28 @@ export function RouteComponent() {
 
   const importBackupMutation = useMutation({
     mutationFn: importBackup,
-    onSuccess: () => {
+    onSuccess: async () => {
       setImportFile(null)
       setFeedback('Backup imported.')
+      await invalidateOperationalQueries()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const clearBackupMutation = useMutation({
     mutationFn: clearBackup,
-    onSuccess: () => {
+    onSuccess: async () => {
       setFeedback('All user data cleared after backup snapshot.')
       setClearOpen(false)
+      await invalidateOperationalQueries()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const assistantSettings = assistantQuery.data?.settings
-  const currentAssistant = assistantDraft ?? {
+  const currentConnection = agentConnectionDraft ?? {
     baseUrl: assistantSettings?.base_url ?? '',
     apiKey: assistantSettings?.api_key ?? '',
-    model: assistantSettings?.model ?? '',
-    reasoningEffort: assistantSettings?.reasoning_effort ?? '',
   }
   const pomodoroSettings = pomodoroQuery.data?.settings
   const currentPomodoro = pomodoroDraft ?? {
@@ -100,181 +120,218 @@ export function RouteComponent() {
   }
 
   return (
-    <div className="grid gap-8">
+    <div className="settings-page grid gap-8">
       <ScrollReveal>
-        <PageHeader
-          eyebrow="Settings"
-          title="Keep your desk personal, portable, and recoverable."
-          description="Adjust assistant behavior, focus defaults, and data safety without crowding the main workspace."
-        />
+        <section className="settings-command-board">
+          <div className="settings-command-copy">
+            <p className="eyebrow">Settings</p>
+            <h1 className="settings-command-title">
+              Keep the desk
+              <br />
+              personal,
+              <br />
+              <span className="gradient-heading">portable, and safe.</span>
+            </h1>
+            <p className="settings-command-note">
+              Agent connection, focus defaults, and recovery controls stay here. Model choice and reasoning depth now live in the Agent workspace where the planning actually happens.
+            </p>
+          </div>
+
+          <div className="settings-command-grid">
+            <div className="settings-status-card">
+              <p className="eyebrow">Agent</p>
+              <p className="settings-status-value">{assistantSettings?.enabled ? 'Ready' : 'Offline'}</p>
+              <p className="settings-status-copy">
+                {assistantSettings?.managed_by_environment ? 'Managed by environment variables.' : 'Editable from this page.'}
+              </p>
+            </div>
+            <div className="settings-status-card">
+              <p className="eyebrow">Rhythm</p>
+              <p className="settings-status-value">
+                {currentPomodoro.focusMinutes}/{currentPomodoro.shortBreakMinutes}
+              </p>
+              <p className="settings-status-copy">Focus and short-break defaults.</p>
+            </div>
+            <div className="settings-status-card">
+              <p className="eyebrow">Backup</p>
+              <p className="settings-status-value">Portable</p>
+              <p className="settings-status-copy">Export, import, and clear controls stay together.</p>
+            </div>
+          </div>
+        </section>
       </ScrollReveal>
 
       {feedback ? <InlineMessage tone={feedback.toLowerCase().includes('error') || feedback.toLowerCase().includes('failed') ? 'danger' : 'success'}>{feedback}</InlineMessage> : null}
       {assistantQuery.error ? <InlineMessage tone="danger">{describeError(assistantQuery.error)}</InlineMessage> : null}
+      {pomodoroQuery.error ? <InlineMessage tone="danger">{describeError(pomodoroQuery.error)}</InlineMessage> : null}
 
       <ScrollReveal soft>
-      <section className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Assistant" value={currentAssistant.model || 'Default'} hint="Your preferred endpoint, key, and model profile." />
-        <MetricCard label="Focus rhythm" value={`${currentPomodoro.focusMinutes}/${currentPomodoro.shortBreakMinutes}`} hint="Minutes for focus and short break by default." />
-        <MetricCard label="Backups" value="Ready" hint="Export, import, and clear controls stay grouped here." />
-      </section>
+        <section className="settings-operating-grid">
+          <article className="settings-panel">
+            <div className="settings-panel-head">
+              <div>
+                <p className="eyebrow">Agent connection</p>
+                <h2 className="settings-panel-title">Endpoint and key live here.</h2>
+              </div>
+            </div>
+
+            <p className="settings-panel-copy">
+              This page only manages the connection itself. Model choice and reasoning depth are controlled directly inside Agent so the planning surface stays self-contained.
+            </p>
+
+            <form
+              className="grid gap-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                saveAssistantMutation.mutate({
+                  base_url: currentConnection.baseUrl || null,
+                  api_key: currentConnection.apiKey || null,
+                })
+              }}
+            >
+              <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
+                Agent endpoint
+                <Input
+                  value={currentConnection.baseUrl}
+                  disabled={assistantSettings?.managed_by_environment}
+                  onChange={(event) =>
+                    setAgentConnectionDraft({
+                      ...currentConnection,
+                      baseUrl: event.target.value,
+                    })
+                  }
+                  placeholder="https://api.example.com/v1"
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
+                Access key
+                <Input
+                  value={currentConnection.apiKey}
+                  disabled={assistantSettings?.managed_by_environment}
+                  onChange={(event) =>
+                    setAgentConnectionDraft({
+                      ...currentConnection,
+                      apiKey: event.target.value,
+                    })
+                  }
+                  placeholder="Leave unchanged if you already saved one"
+                />
+              </label>
+              <Button type="submit" disabled={saveAssistantMutation.isPending || assistantSettings?.managed_by_environment}>
+                Save agent connection
+              </Button>
+            </form>
+
+            {assistantSettings?.managed_by_environment ? (
+              <div className="settings-inline-note">
+                Environment variables are currently managing the Agent connection, so local edits are intentionally disabled.
+              </div>
+            ) : null}
+          </article>
+
+          <article className="settings-panel">
+            <div className="settings-panel-head">
+              <div>
+                <p className="eyebrow">Pomodoro defaults</p>
+                <h2 className="settings-panel-title">Your baseline focus rhythm.</h2>
+              </div>
+            </div>
+
+            <p className="settings-panel-copy">
+              These values seed the Focus page whenever you start a Pomodoro run, and they are stored per user so the rhythm follows the account.
+            </p>
+
+            <form
+              className="grid gap-4 md:grid-cols-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                savePomodoroMutation.mutate({
+                  focus_minutes: Number(currentPomodoro.focusMinutes),
+                  short_break_minutes: Number(currentPomodoro.shortBreakMinutes),
+                  long_break_minutes: Number(currentPomodoro.longBreakMinutes),
+                  total_rounds: Number(currentPomodoro.totalRounds),
+                })
+              }}
+            >
+              <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
+                Focus minutes
+                <Input
+                  type="number"
+                  min={1}
+                  value={currentPomodoro.focusMinutes}
+                  onChange={(event) =>
+                    setPomodoroDraft({
+                      ...currentPomodoro,
+                      focusMinutes: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
+                Short break
+                <Input
+                  type="number"
+                  min={1}
+                  value={currentPomodoro.shortBreakMinutes}
+                  onChange={(event) =>
+                    setPomodoroDraft({
+                      ...currentPomodoro,
+                      shortBreakMinutes: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
+                Long break
+                <Input
+                  type="number"
+                  min={1}
+                  value={currentPomodoro.longBreakMinutes}
+                  onChange={(event) =>
+                    setPomodoroDraft({
+                      ...currentPomodoro,
+                      longBreakMinutes: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
+                Total rounds
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={currentPomodoro.totalRounds}
+                  onChange={(event) =>
+                    setPomodoroDraft({
+                      ...currentPomodoro,
+                      totalRounds: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <Button type="submit" className="md:col-span-2" disabled={savePomodoroMutation.isPending}>
+                Save focus rhythm
+              </Button>
+            </form>
+          </article>
+        </section>
       </ScrollReveal>
 
       <ScrollReveal delayMs={100}>
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Panel className="space-y-5">
-          <SectionHeading title="Assistant setup" description="Keep your preferred assistant connection and default focus rhythm in one place." />
+        <section className="settings-recovery-panel">
+          <div className="settings-panel-head">
+            <div>
+              <p className="eyebrow">Recovery</p>
+              <h2 className="settings-panel-title">Backup, restore, or reset the workspace.</h2>
+            </div>
+          </div>
 
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              saveAssistantMutation.mutate({
-                base_url: currentAssistant.baseUrl || null,
-                api_key: currentAssistant.apiKey || null,
-                model: currentAssistant.model || null,
-                reasoning_effort: currentAssistant.reasoningEffort || null,
-              })
-            }}
-          >
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Assistant endpoint
-              <Input
-                value={currentAssistant.baseUrl}
-                onChange={(event) =>
-                  setAssistantDraft({
-                    ...currentAssistant,
-                    baseUrl: event.target.value,
-                  })
-                }
-                placeholder="https://api.example.com/v1"
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Access key
-              <Input
-                value={currentAssistant.apiKey}
-                onChange={(event) =>
-                  setAssistantDraft({
-                    ...currentAssistant,
-                    apiKey: event.target.value,
-                  })
-                }
-                placeholder="Leave unchanged if you already saved one"
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Model profile
-              <Input
-                value={currentAssistant.model}
-                onChange={(event) =>
-                  setAssistantDraft({
-                    ...currentAssistant,
-                    model: event.target.value,
-                  })
-                }
-                placeholder="Choose the profile you prefer to plan with"
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Thinking depth
-              <Input
-                value={currentAssistant.reasoningEffort}
-                onChange={(event) =>
-                  setAssistantDraft({
-                    ...currentAssistant,
-                    reasoningEffort: event.target.value,
-                  })
-                }
-                placeholder="none, low, medium, high, xhigh"
-              />
-            </label>
-            <Button type="submit" disabled={saveAssistantMutation.isPending}>
-              Save assistant setup
-            </Button>
-          </form>
+          <p className="settings-panel-copy">
+            Use export before big migrations, import when you need to recover a known state, and clear only when you intentionally want a fresh start.
+          </p>
 
-          <div className="soft-divider" />
-
-          <form
-            className="grid gap-4 md:grid-cols-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              savePomodoroMutation.mutate({
-                focus_minutes: Number(currentPomodoro.focusMinutes),
-                short_break_minutes: Number(currentPomodoro.shortBreakMinutes),
-                long_break_minutes: Number(currentPomodoro.longBreakMinutes),
-                total_rounds: Number(currentPomodoro.totalRounds),
-              })
-            }}
-          >
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Focus minutes
-              <Input
-                type="number"
-                min={1}
-                value={currentPomodoro.focusMinutes}
-                onChange={(event) =>
-                  setPomodoroDraft({
-                    ...currentPomodoro,
-                    focusMinutes: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Short break
-              <Input
-                type="number"
-                min={1}
-                value={currentPomodoro.shortBreakMinutes}
-                onChange={(event) =>
-                  setPomodoroDraft({
-                    ...currentPomodoro,
-                    shortBreakMinutes: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Long break
-              <Input
-                type="number"
-                min={1}
-                value={currentPomodoro.longBreakMinutes}
-                onChange={(event) =>
-                  setPomodoroDraft({
-                    ...currentPomodoro,
-                    longBreakMinutes: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
-              Total rounds
-              <Input
-                type="number"
-                min={1}
-                max={12}
-                value={currentPomodoro.totalRounds}
-                onChange={(event) =>
-                  setPomodoroDraft({
-                    ...currentPomodoro,
-                    totalRounds: event.target.value,
-                  })
-                }
-              />
-            </label>
-            <Button type="submit" className="md:col-span-2" disabled={savePomodoroMutation.isPending}>
-              Save focus rhythm
-            </Button>
-          </form>
-        </Panel>
-
-        <Panel className="space-y-5">
-          <SectionHeading title="Data maintenance" description="Download a backup, restore one, or reset the workspace when you intentionally need a clean slate." />
-
-          <div className="grid gap-3">
+          <div className="settings-recovery-grid">
             <Button variant="secondary" onClick={() => exportBackupMutation.mutate()} disabled={exportBackupMutation.isPending}>
               Export backup
             </Button>
@@ -316,8 +373,7 @@ export function RouteComponent() {
               />
             </DialogPanel>
           </div>
-        </Panel>
-      </section>
+        </section>
       </ScrollReveal>
     </div>
   )

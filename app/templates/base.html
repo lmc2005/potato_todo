@@ -30,8 +30,8 @@
     {% set shell_title = "Study reports" %}
     {% set shell_subtitle = "Read focus quality, study distribution, consistency, and completion trends from multiple angles." %}
   {% elif active_page == "assistant" %}
-    {% set shell_kicker = "Assistant" %}
-    {% set shell_title = "GPT assistant" %}
+    {% set shell_kicker = "Agent" %}
+    {% set shell_title = "Study agent" %}
     {% set shell_subtitle = "Plan study blocks conversationally, chat freely, and apply structured drafts to tasks or calendar." %}
   {% elif active_page == "rooms" %}
     {% set shell_kicker = "Rooms" %}
@@ -79,7 +79,7 @@
           <a class="{{ 'active' if active_page == 'calendar' else '' }}" href="/calendar">Schedule</a>
           <a class="{{ 'active' if active_page == 'analytics' else '' }}" href="/analytics">Reports</a>
           {% if ai_enabled %}
-          <a class="{{ 'active' if active_page == 'assistant' else '' }}" href="/assistant">Assistant</a>
+          <a class="{{ 'active' if active_page == 'assistant' else '' }}" href="/assistant">Agent</a>
           {% endif %}
           <a class="{{ 'active' if active_page == 'rooms' else '' }}" href="/rooms">Rooms</a>
           <a class="{{ 'active' if active_page == 'settings' else '' }}" href="/settings">Settings</a>
@@ -122,7 +122,7 @@
             <span class="topbar-pill">{{ current_user_label }}</span>
             <span class="topbar-pill">{{ today }}</span>
             {% if active_page == "assistant" %}
-            <span class="topbar-pill">Multi-turn assistant</span>
+            <span class="topbar-pill">Multi-turn agent</span>
             {% elif active_page == "analytics" %}
             <span class="topbar-pill">Visual reports</span>
             {% elif active_page == "rooms" %}

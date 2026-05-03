@@ -281,7 +281,7 @@ def test_llm_settings_store_reasoning_effort(client):
 def test_assistant_page_loads_after_auth(client):
     response = client.get("/assistant")
     assert response.status_code == 200
-    assert "GPT Assistant" in response.text
+    assert "Study agent" in response.text
 
 
 def test_ai_plan_without_time_request_returns_tasks_only(client, monkeypatch):

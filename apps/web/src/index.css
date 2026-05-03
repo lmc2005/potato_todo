@@ -896,6 +896,626 @@
   .stage-copy-row-detail {
     max-width: 34rem;
   }
+
+  .agent-page,
+  .focus-page,
+  .analytics-page,
+  .rooms-page,
+  .settings-page {
+    position: relative;
+  }
+
+  .agent-command-stage {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+    border-radius: 48px;
+    background:
+      radial-gradient(circle at 16% 16%, rgba(116, 202, 252, 0.18), transparent 28%),
+      radial-gradient(circle at 86% 16%, rgba(121, 109, 255, 0.26), transparent 24%),
+      linear-gradient(146deg, #11131b 0%, #20263a 100%);
+    padding: clamp(1.4rem, 2.6vw, 2rem);
+    color: #ffffff;
+    box-shadow:
+      0 24px 60px rgba(18, 19, 26, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .agent-command-rail,
+  .agent-command-main {
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+  }
+
+  .agent-command-copy {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .agent-command-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 5vw, 4.9rem);
+    line-height: 1.03;
+    letter-spacing: -0.07em;
+    font-weight: 500;
+  }
+
+  .agent-command-note,
+  .agent-quote-copy,
+  .agent-quote-meta {
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 0.98rem;
+    line-height: 1.8;
+    letter-spacing: -0.015em;
+  }
+
+  .agent-mode-stack,
+  .focus-mode-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .agent-mode-pill,
+  .focus-mode-chip {
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.82rem 1.15rem;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.94rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    transition:
+      transform 180ms ease,
+      background-color 180ms ease,
+      color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .agent-mode-pill.is-active,
+  .focus-mode-chip.is-active {
+    background: #ffffff;
+    color: #11131b;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 14px 28px rgba(18, 19, 26, 0.14);
+  }
+
+  .agent-quote-card {
+    border-radius: 34px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1.1rem 1.2rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .agent-command-toolbar {
+    display: grid;
+    gap: 1rem;
+    border-radius: 34px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 1.2rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .agent-toolbar-title {
+    margin-top: 0.45rem;
+    color: #ffffff;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 2vw, 2rem);
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+  }
+
+  .agent-toolbar-grid {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .agent-dark-field {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .agent-dark-field option {
+    color: #11131b;
+  }
+
+  .agent-status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .agent-status-strip span,
+  .focus-stage-chip,
+  .rooms-chip,
+  .analytics-day-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    padding: 0.6rem 0.88rem;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.86rem;
+    letter-spacing: -0.01em;
+  }
+
+  .agent-workbench {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1.16fr) minmax(320px, 0.84fr);
+    align-items: start;
+  }
+
+  .agent-thread-panel,
+  .agent-sidebar-panel {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .agent-panel-head,
+  .analytics-section-head,
+  .rooms-section-head,
+  .settings-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .agent-panel-title,
+  .analytics-section-title,
+  .rooms-section-title,
+  .settings-panel-title,
+  .focus-setup-title {
+    margin: 0.42rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 2.3vw, 2.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.05em;
+    color: #11131b;
+  }
+
+  .agent-range-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-thread-surface {
+    min-height: 360px;
+    border-radius: 34px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.9), transparent 24%),
+      linear-gradient(180deg, rgba(247, 247, 248, 0.92), rgba(242, 243, 247, 0.72));
+    padding: 1.2rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 18px 34px rgba(18, 19, 26, 0.03);
+  }
+
+  .agent-composer,
+  .agent-sidebar-list,
+  .agent-bullet-list,
+  .agent-message-stack,
+  .analytics-note-list,
+  .rooms-room-list {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .agent-note-card,
+  .agent-surface-card,
+  .analytics-note-row,
+  .room-member-card {
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.76);
+    padding: 1rem 1.05rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+
+  .agent-note-copy,
+  .agent-list-detail {
+    color: #586173;
+    font-size: 0.96rem;
+    line-height: 1.8;
+    letter-spacing: -0.015em;
+  }
+
+  .agent-list-row {
+    display: grid;
+    gap: 0.28rem;
+  }
+
+  .agent-list-title,
+  .agent-sidebar-card-title,
+  .focus-detail-title,
+  .analytics-inline-title,
+  .rooms-status-title,
+  .rooms-live-title,
+  .settings-status-value {
+    font-family: var(--font-display);
+    font-size: clamp(1.2rem, 1.9vw, 1.6rem);
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+    color: #11131b;
+  }
+
+  .agent-sidebar-card {
+    border: none;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 1rem 1.05rem;
+    text-align: left;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 14px 28px rgba(18, 19, 26, 0.03);
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .agent-sidebar-card:hover,
+  .rooms-room-card:hover {
+    transform: translateY(-1px);
+  }
+
+  .agent-sidebar-card.is-active,
+  .rooms-room-card.is-active {
+    background: rgba(121, 109, 255, 0.09);
+    box-shadow:
+      inset 0 0 0 1px rgba(121, 109, 255, 0.16),
+      0 16px 28px rgba(18, 19, 26, 0.04);
+  }
+
+  .agent-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(18, 19, 26, 0.06);
+    padding: 0.4rem 0.72rem;
+    color: #6a7385;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .agent-sidebar-card-copy,
+  .focus-detail-copy,
+  .analytics-stat-copy,
+  .analytics-inline-copy,
+  .rooms-status-copy,
+  .rooms-live-copy,
+  .rooms-stat-copy,
+  .settings-status-copy,
+  .settings-panel-copy,
+  .settings-inline-note,
+  .focus-setup-copy {
+    color: #616979;
+    font-size: 0.95rem;
+    line-height: 1.76;
+    letter-spacing: -0.015em;
+  }
+
+  .agent-message-bubble {
+    max-width: min(82%, 42rem);
+    border-radius: 30px;
+    padding: 1rem 1.05rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .agent-message-bubble.is-assistant {
+    justify-self: start;
+    background: rgba(255, 255, 255, 0.74);
+  }
+
+  .agent-message-bubble.is-user {
+    justify-self: end;
+    background: linear-gradient(160deg, #12131b 0%, #242a3f 100%);
+    color: #ffffff;
+    box-shadow: 0 18px 38px rgba(18, 19, 26, 0.14);
+  }
+
+  .agent-message-bubble.is-user .eyebrow,
+  .agent-message-bubble.is-user .agent-note-copy {
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .focus-hero-stage,
+  .analytics-hero,
+  .rooms-hero,
+  .settings-command-board {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1.06fr) minmax(320px, 0.94fr);
+    align-items: stretch;
+  }
+
+  .focus-copy-pane,
+  .analytics-hero-copy,
+  .settings-command-copy {
+    border-radius: 46px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.9), transparent 24%),
+      linear-gradient(180deg, rgba(247, 247, 248, 0.92), rgba(241, 242, 246, 0.7));
+    padding: clamp(1.4rem, 2.6vw, 2rem);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 20px 42px rgba(18, 19, 26, 0.03);
+  }
+
+  .focus-stage-title,
+  .analytics-hero-title,
+  .settings-command-title {
+    margin: 0.45rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 5vw, 4.9rem);
+    line-height: 1.03;
+    letter-spacing: -0.07em;
+    color: #11131b;
+    font-weight: 500;
+  }
+
+  .focus-stage-copy,
+  .analytics-hero-copy-text,
+  .settings-command-note,
+  .rooms-hero-note {
+    margin-top: 1rem;
+    color: #5b6475;
+    font-size: 1rem;
+    line-height: 1.82;
+    letter-spacing: -0.016em;
+    max-width: 42rem;
+  }
+
+  .focus-chip-row,
+  .rooms-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.2rem;
+  }
+
+  .focus-stage-chip {
+    background: rgba(18, 19, 26, 0.06);
+    color: #4f5768;
+  }
+
+  .focus-orbit-board,
+  .rooms-hero-copy {
+    position: relative;
+    overflow: hidden;
+    border-radius: 46px;
+    padding: clamp(1.4rem, 2.4vw, 2rem);
+    background:
+      radial-gradient(circle at 18% 14%, rgba(116, 202, 252, 0.2), transparent 28%),
+      radial-gradient(circle at 82% 18%, rgba(121, 109, 255, 0.26), transparent 26%),
+      linear-gradient(150deg, #12131b 0%, #242a3b 100%);
+    color: #ffffff;
+    box-shadow:
+      0 22px 52px rgba(18, 19, 26, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .focus-orbit-ring {
+    position: relative;
+    width: min(100%, 360px);
+    aspect-ratio: 1;
+    margin-inline: auto;
+    border-radius: 999px;
+    padding: 14px;
+    background: conic-gradient(from -90deg, var(--focus-accent) calc(var(--focus-progress, 0) * 1turn), rgba(255, 255, 255, 0.09) 0turn);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 24px 56px rgba(18, 19, 26, 0.2);
+  }
+
+  .focus-orbit-ring::before {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+    pointer-events: none;
+  }
+
+  .focus-orbit-core {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 0.65rem;
+    height: 100%;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.12), transparent 32%),
+      linear-gradient(180deg, rgba(18, 19, 26, 0.92), rgba(28, 31, 47, 0.98));
+    padding: 2rem;
+    text-align: center;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .focus-orbit-kicker {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .focus-orbit-time {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 5.4vw, 5rem);
+    line-height: 0.95;
+    letter-spacing: -0.08em;
+    color: #ffffff;
+  }
+
+  .focus-orbit-caption {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.74);
+    font-size: 0.94rem;
+    line-height: 1.72;
+    letter-spacing: -0.015em;
+    max-width: 22rem;
+  }
+
+  .focus-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.35rem;
+  }
+
+  .focus-detail-grid,
+  .rooms-stat-grid,
+  .settings-command-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .focus-detail-card,
+  .analytics-stat-card,
+  .rooms-stat-card,
+  .settings-status-card {
+    border-radius: 30px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.88), transparent 24%),
+      linear-gradient(180deg, rgba(247, 247, 248, 0.9), rgba(241, 242, 246, 0.68));
+    padding: 1.15rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 18px 34px rgba(18, 19, 26, 0.03);
+  }
+
+  .focus-setup-shell,
+  .analytics-chart-stage,
+  .analytics-mix-card,
+  .analytics-insight-card,
+  .rooms-form-card,
+  .rooms-list-card,
+  .rooms-live-stage,
+  .settings-panel,
+  .settings-recovery-panel {
+    border-radius: 42px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.9), transparent 24%),
+      linear-gradient(180deg, rgba(247, 247, 248, 0.92), rgba(241, 242, 246, 0.72));
+    padding: clamp(1.3rem, 2.3vw, 1.8rem);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 18px 36px rgba(18, 19, 26, 0.03);
+  }
+
+  .focus-form-grid,
+  .settings-recovery-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .focus-rhythm-note,
+  .settings-inline-note {
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.72);
+    padding: 1rem 1.05rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .analytics-layout,
+  .rooms-layout {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+    align-items: start;
+  }
+
+  .analytics-chart-frame,
+  .analytics-mini-chart {
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.78);
+    padding: 1rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 14px 28px rgba(18, 19, 26, 0.03);
+  }
+
+  .analytics-side-stack,
+  .rooms-lobby-column {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .analytics-stat-value,
+  .rooms-stat-value {
+    margin-top: 0.5rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 2.7vw, 2.5rem);
+    line-height: 1;
+    letter-spacing: -0.055em;
+    color: #11131b;
+  }
+
+  .rooms-hero-status {
+    border-radius: 42px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.88), transparent 24%),
+      linear-gradient(180deg, rgba(247, 247, 248, 0.9), rgba(242, 243, 247, 0.72));
+    padding: clamp(1.4rem, 2.5vw, 1.8rem);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 18px 34px rgba(18, 19, 26, 0.03);
+  }
+
+  .rooms-room-card {
+    border: none;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.74);
+    padding: 1rem 1.05rem;
+    text-align: left;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.94),
+      0 14px 28px rgba(18, 19, 26, 0.03);
+    transition:
+      transform 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .rooms-live-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 32px;
+    background: rgba(255, 255, 255, 0.78);
+    padding: 1rem 1.05rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  .settings-operating-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @keyframes hero-marquee-left {
@@ -911,6 +1531,30 @@
 @media (max-width: 900px) {
   .hero-meta-strip {
     border-radius: 28px;
+  }
+
+  .agent-command-stage,
+  .agent-workbench,
+  .focus-hero-stage,
+  .analytics-hero,
+  .analytics-layout,
+  .rooms-hero,
+  .rooms-layout,
+  .settings-command-board,
+  .settings-operating-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-toolbar-grid,
+  .focus-form-grid,
+  .rooms-stat-grid,
+  .settings-command-grid,
+  .settings-recovery-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .focus-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .repay-stat::after {
