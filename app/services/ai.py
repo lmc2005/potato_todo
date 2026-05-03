@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import AsyncIterator
 from datetime import date, datetime
 from typing import Any
 
@@ -141,6 +142,26 @@ def _extract_text_content(data: dict[str, Any]) -> str:
     return str(content or "").strip()
 
 
+def _extract_stream_text_delta(data: dict[str, Any]) -> str:
+    choice = (data.get("choices") or [{}])[0]
+    delta = choice.get("delta") or {}
+    content = delta.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(str(item.get("text") or ""))
+        return "".join(parts)
+    message = choice.get("message") or {}
+    if isinstance(message, dict):
+        content = message.get("content", "")
+        if isinstance(content, str):
+            return content
+    return ""
+
+
 async def _llm_request(db: Session, user_id: int | None, body: dict[str, Any]) -> tuple[dict[str, Any], str]:
     base_url, api_key, model, reasoning_effort = _llm_config(db, user_id)
     url = f"{base_url}/chat/completions"
@@ -169,6 +190,42 @@ async def _llm_request(db: Session, user_id: int | None, body: dict[str, Any]) -
     if not content:
         raise HTTPException(status_code=502, detail="The model returned an empty response.")
     return data, content
+
+
+async def _llm_request_stream(db: Session, user_id: int | None, body: dict[str, Any]) -> AsyncIterator[str]:
+    base_url, api_key, model, reasoning_effort = _llm_config(db, user_id)
+    url = f"{base_url}/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    body = {"model": model, "stream": True, **body}
+    if reasoning_effort and model.startswith("gpt-5"):
+        body["reasoning_effort"] = reasoning_effort
+    logger.info(
+        "LLM stream request\nurl=%s\nmodel=%s\npayload=%s",
+        url,
+        model,
+        json.dumps(body, ensure_ascii=False, indent=2),
+    )
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=30.0)) as client:
+        async with client.stream("POST", url, headers=headers, json=body) as response:
+            if response.status_code >= 400:
+                error_text = await response.aread()
+                raise HTTPException(status_code=502, detail=f"LLM request failed: {error_text.decode('utf-8', errors='ignore')[:500]}")
+
+            async for raw_line in response.aiter_lines():
+                line = raw_line.strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                delta = _extract_stream_text_delta(data)
+                if delta:
+                    yield delta
 
 
 async def call_llm(
@@ -228,6 +285,34 @@ async def call_llm_text(
         },
     )
     return content.strip()
+
+
+async def stream_llm_text(
+    db: Session,
+    user_id: int,
+    system_prompt: str | None,
+    instruction: str,
+    conversation: list[dict[str, str]] | None = None,
+    context: dict[str, Any] | None = None,
+) -> AsyncIterator[str]:
+    ensure_ai_enabled(db)
+    messages: list[dict[str, str]] = []
+    if system_prompt and system_prompt.strip():
+        messages.append({"role": "system", "content": system_prompt})
+    if context:
+        messages.append({"role": "system", "content": "Local context:\n" + json.dumps(context, ensure_ascii=False)})
+    messages.extend(_normalize_conversation(conversation))
+    messages.append({"role": "user", "content": instruction})
+
+    async for delta in _llm_request_stream(
+        db,
+        user_id,
+        {
+            "temperature": 0.55,
+            "messages": messages,
+        },
+    ):
+        yield delta
 
 
 def planning_requests_schedule(instruction: str | None, conversation: list[dict[str, str]] | None = None) -> bool:

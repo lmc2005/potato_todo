@@ -1087,3 +1087,37 @@ Release standard:
 - Maintenance notes: future analytics visual changes should preserve the separation between execution-quality analysis and subject-distribution analysis; settings-management logic should continue distinguishing “default fallback env values” from “intentional env ownership”; and the `HH:MM:SS` clock format should remain limited to the live timer surface unless product explicitly expands that exception
 - Future extension points: the pie section can later evolve into interactive slice hover/focus behavior, and settings can gain field-level environment ownership badges if the deployment matrix becomes more complex
 - Known limitations / technical debt: the subject-mix pie is currently a CSS-rendered visualization rather than a semantic chart component, so if deep accessibility or export requirements grow later, it may need a richer chart implementation
+
+### Entry 040
+
+- Feature name: Agent real-time chat streaming, Codex-style workbench rebalance, and IME-safe composer controls
+- Phase: M5
+- Purpose: upgrade the Agent route from request/response chat into a streaming conversation surface with clearer progress feedback, larger primary thread real estate, and more production-safe input behavior
+- User value: users now see `thinking` immediately, receive the reply progressively instead of waiting for a full payload, can send with `Enter`, keep `Shift + Enter` for line breaks, and use a larger chat canvas with a smaller saved-conversations rail
+- APIs: `POST /api/v2/assistant/chat/stream`, `GET /api/v2/assistant/chat/sessions`, `GET /api/v2/assistant/chat/sessions/{id}`, `DELETE /api/v2/assistant/chat/sessions/{id}`
+- Request/response summary: the new stream endpoint returns NDJSON events in the order `thinking -> chunk* -> done` or `error`; the frontend consumes those lines through a shared authenticated stream client and still hydrates persistent conversation/session queries after completion
+- Frameworks/libraries used: FastAPI `StreamingResponse`, OpenAI-compatible streamed chat completions, React, TanStack Query, shared typed API client, CSS-based cursor animation
+- Implementation notes: added a shared `apiStream(...)` transport with auth-refresh retry, created `streamChat(...)` in the planner feature API, bridged provider SSE text deltas through backend assistant service streaming, kept chat mode free of any injected system prompt, introduced a local character queue so chunks render progressively in a near character-by-character cadence, and rebalanced the route layout into a larger thread panel plus a tighter history panel closer to a Codex-like chat workspace
+- State transitions and edge cases: new-chat selection now uses an explicit fresh-thread state instead of silently falling back to the latest saved conversation; IME composition is respected so pressing `Enter` while choosing Chinese/Japanese candidates does not accidentally send; stream failures restore the unsent input text and surface an error without persisting an incomplete assistant message
+- Performance strategy: streaming is strictly user-triggered, uses incremental network reads instead of polling, and only runs the temporary character flush timer while a reply is actively arriving
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests` with `19 passed`
+- Maintenance notes: all future chat UX changes should continue to use the shared streaming transport and keep persistence on the backend `done` boundary so partial output is never stored as final conversation history
+- Future extension points: abortable streams, richer typing indicators, per-message copy/regenerate controls, streamed markdown rendering, and searchable conversation history
+- Known limitations / technical debt: the current character pacing is client-simulated on top of provider chunks for better UX; if future providers expose token-level metadata we can switch to a more precise stream cadence
+
+### Entry 041
+
+- Feature name: Workspace daily status ribbon under hero CTA
+- Phase: M4-M5
+- Purpose: replace the older generic hero meta row with a more actionable daily strip that reflects today's remaining task pressure and today's total focus time directly under the Workspace primary actions
+- User value: users get instant awareness of what still needs attention today and how much focus has already been logged, without having to scan deeper into the page
+- APIs: no new API endpoints; this ribbon is derived from existing `workspaceOverview(...)` data, especially task lists and analytics `daily_trend`
+- Request/response summary: `today's remaining tasks` is computed from open tasks whose due date is today or earlier, while `today total focus` is read from the current day bucket inside analytics `daily_trend`
+- Frameworks/libraries used: existing React route state, shared date helpers, shared CSS token layer
+- Implementation notes: rebuilt the hero strip into a white ribbon with grey editorial labels, display-weight values, and animated black edge lines so it feels like a premium blended instrument rather than a plain statistics pill row
+- State transitions and edge cases: tasks without due dates are intentionally excluded from the remaining-today count to avoid false urgency; if no focus minutes are logged today, the bar safely shows `0h 0m`
+- Performance strategy: purely derived UI from already-loaded overview data; no extra request, polling loop, or expensive animation system was introduced
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck`, `corepack pnpm --filter @potato/web build`, and `./.potato_todo_env/bin/python -m pytest -q apps/api/tests tests` with `19 passed`
+- Maintenance notes: future hero-status additions should stay derived from the overview payload unless a truly distinct domain endpoint becomes necessary, and visual refinements should reuse this ribbon pattern instead of reintroducing unrelated metric pills
+- Future extension points: overdue-vs-due-today split, streak micro-indicator, adaptive color accents by workload, and hover drill-down into the task subset represented by the count
+- Known limitations / technical debt: this ribbon currently compresses today's task urgency into a single count; if task volume grows significantly, a richer mini-breakdown may be worth adding later

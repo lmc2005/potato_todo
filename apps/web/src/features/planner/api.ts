@@ -9,7 +9,7 @@ import type {
   DailyQuote,
 } from '@potato/contracts'
 
-import { apiRequest } from '@/shared/lib/api'
+import { apiRequest, apiStream } from '@/shared/lib/api'
 
 export type AssistantRequestInput = {
   start?: string
@@ -22,6 +22,12 @@ export type ChatInput = {
   conversation_id?: number | null
   message: string
 }
+
+export type ChatStreamEvent =
+  | { type: 'thinking' }
+  | { type: 'chunk'; content: string }
+  | { type: 'done'; item: AssistantChatResult }
+  | { type: 'error'; detail: string }
 
 export function planDraft(payload: AssistantRequestInput) {
   return apiRequest<ApiItem<AssistantDraft>>('/api/v2/assistant/plan', {
@@ -69,5 +75,16 @@ export function sendChat(payload: ChatInput) {
   return apiRequest<ApiItem<AssistantChatResult>>('/api/v2/assistant/chat/send', {
     method: 'POST',
     body: payload,
+  })
+}
+
+export function streamChat(payload: ChatInput, onEvent: (event: ChatStreamEvent) => Promise<void> | void) {
+  return apiStream('/api/v2/assistant/chat/stream', {
+    method: 'POST',
+    body: payload,
+    onLine: async (line) => {
+      const event = JSON.parse(line) as ChatStreamEvent
+      await onEvent(event)
+    },
   })
 }

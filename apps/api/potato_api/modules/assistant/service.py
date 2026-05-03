@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
+from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -26,6 +28,7 @@ from ...legacy_bridge import (
     now_local,
     planning_requests_schedule,
     save_chat_exchange,
+    stream_llm_text,
 )
 
 
@@ -105,6 +108,56 @@ async def send_chat_message(db: Session, user_id: int, payload: AiChatSendIn) ->
         "assistant_message": assistant_message,
         "sessions": list_chat_conversations(db, user_id),
     }
+
+
+async def stream_chat_message(db: Session, user_id: int, payload: AiChatSendIn) -> AsyncIterator[str]:
+    ensure_ai_enabled(db)
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required.")
+
+    conversation_turns: list[dict[str, str]] = []
+    if payload.conversation_id is not None:
+        conversation = db.query(AiConversation).filter(AiConversation.id == payload.conversation_id, AiConversation.user_id == user_id).first()
+        if conversation is None or conversation.mode != "chat":
+            raise HTTPException(status_code=404, detail="Chat conversation not found.")
+        conversation_turns = [
+            {"role": item.role, "content": item.content}
+            for item in conversation.messages
+            if item.role in {"user", "assistant"} and item.content
+        ]
+
+    yield json.dumps({"type": "thinking"}, ensure_ascii=False) + "\n"
+
+    assistant_parts: list[str] = []
+    try:
+        async for chunk in stream_llm_text(db, user_id, None, message, conversation=conversation_turns):
+            assistant_parts.append(chunk)
+            yield json.dumps({"type": "chunk", "content": chunk}, ensure_ascii=False) + "\n"
+    except HTTPException as exc:
+        yield json.dumps({"type": "error", "detail": exc.detail}, ensure_ascii=False) + "\n"
+        return
+    except Exception:
+        yield json.dumps({"type": "error", "detail": "Unexpected streaming error."}, ensure_ascii=False) + "\n"
+        return
+
+    assistant_message = "".join(assistant_parts).strip()
+    if not assistant_message:
+        yield json.dumps({"type": "error", "detail": "The model returned an empty response."}, ensure_ascii=False) + "\n"
+        return
+
+    conversation_payload = save_chat_exchange(db, user_id, message, assistant_message, conversation_id=payload.conversation_id)
+    yield json.dumps(
+        {
+            "type": "done",
+            "item": {
+                "conversation": conversation_payload,
+                "assistant_message": assistant_message,
+                "sessions": list_chat_conversations(db, user_id),
+            },
+        },
+        ensure_ascii=False,
+    ) + "\n"
 
 
 async def load_daily_quote(db: Session) -> dict:

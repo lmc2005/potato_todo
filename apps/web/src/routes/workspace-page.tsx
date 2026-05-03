@@ -6,7 +6,7 @@ import { createEvent, createTask, deleteEvent, deleteSubject, deleteTask, update
 import { MarqueeTicker } from '@/shared/components/marquee-ticker'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
 import { Button, EmptyState, InlineMessage, Input, Select } from '@/shared/components/ui'
-import { formatDetailedDate, formatMinutes, formatShortDate, getWindowRange, toIsoOrNull } from '@/shared/lib/date'
+import { dateInputValue, formatDetailedDate, formatMinutes, formatShortDate, getWindowRange, toIsoOrNull } from '@/shared/lib/date'
 import { describeError } from '@/shared/lib/errors'
 
 function queryKey(start: string, end: string) {
@@ -110,6 +110,14 @@ export function RouteComponent() {
     .filter((task) => Boolean(task.due_at))
     .sort((a, b) => String(a.due_at).localeCompare(String(b.due_at)))[0]
   const nextEvent = [...events].sort((a, b) => String(a.start_at).localeCompare(String(b.start_at)))[0]
+  const todayKey = dateInputValue(new Date())
+  const todaysRemainingTasks = openTasks.filter((task) => {
+    if (!task.due_at) {
+      return false
+    }
+    return task.due_at.slice(0, 10) <= todayKey
+  }).length
+  const todayFocusMinutes = stats?.daily_trend.find((row) => row.date === todayKey)?.minutes ?? 0
 
   const quickStats = [
     {
@@ -153,9 +161,14 @@ export function RouteComponent() {
   ]
 
   const heroMeta = [
-    openTasks.length > 0 ? `${openTasks.length} open items` : 'Open surface waiting',
-    stats ? `${formatMinutes(stats.total_minutes)} focus logged` : 'Focus log standing by',
-    nextEvent ? `Next block ${formatShortDate(nextEvent.start_at)}` : 'Next block still open',
+    {
+      label: "today's remaining tasks",
+      value: String(todaysRemainingTasks),
+    },
+    {
+      label: 'today total focus',
+      value: formatMinutes(todayFocusMinutes),
+    },
   ]
 
   const stageRows = [
@@ -197,10 +210,11 @@ export function RouteComponent() {
                 Open agent
               </Link>
             </div>
-            <div className="hero-meta-strip">
+            <div className="hero-meta-strip" aria-label="Workspace daily status">
               {heroMeta.map((item) => (
-                <span key={item} className="hero-meta-item">
-                  {item}
+                <span key={item.label} className="hero-meta-item">
+                  <span className="hero-meta-item-label">{item.label}</span>
+                  <span className="hero-meta-item-value">{item.value}</span>
                 </span>
               ))}
             </div>

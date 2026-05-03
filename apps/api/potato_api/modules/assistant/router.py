@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from app.schemas import AiChatSendIn, AiRequestIn
 
@@ -17,6 +18,7 @@ from .service import (
     load_daily_quote,
     remove_chat_session,
     send_chat_message,
+    stream_chat_message,
 )
 
 
@@ -51,6 +53,11 @@ def delete_session(conversation_id: int, db=Depends(get_db), user: User = Depend
 @router.post("/chat/send")
 async def send(payload: AiChatSendIn, db=Depends(get_db), user: User = Depends(get_current_user)):
     return item_payload(await send_chat_message(db, user.id, payload))
+
+
+@router.post("/chat/stream")
+async def stream(payload: AiChatSendIn, db=Depends(get_db), user: User = Depends(get_current_user)):
+    return StreamingResponse(stream_chat_message(db, user.id, payload), media_type="application/x-ndjson")
 
 
 @router.get("/daily-quote")

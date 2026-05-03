@@ -1,8 +1,8 @@
 import type { AssistantDraft, LlmSettings } from '@potato/contracts'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { analyzeDraft, applyDraft, deleteChatSession, listChatSessions, listDrafts, loadChatSession, loadDailyQuote, planDraft, sendChat } from '@/features/planner/api'
+import { analyzeDraft, applyDraft, deleteChatSession, listChatSessions, listDrafts, loadChatSession, loadDailyQuote, planDraft, streamChat } from '@/features/planner/api'
 import { loadLlmSettings, saveLlmSettings } from '@/features/settings/api'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
 import { Button, EmptyState, InlineMessage, Input, Panel, Select, Textarea } from '@/shared/components/ui'
@@ -10,6 +10,13 @@ import { getWindowRange } from '@/shared/lib/date'
 import { describeError } from '@/shared/lib/errors'
 
 type AgentMode = 'planning' | 'chat'
+type ConversationSelection = number | 'new' | null
+type DisplayMessage = {
+  id: string
+  role: string
+  content: string
+  state?: 'thinking' | 'streaming'
+}
 
 const modelOptions = ['gpt-5.4', 'gpt-5.5', 'gpt-5.3-codex']
 const reasoningOptions = ['xhigh', 'high', 'medium', 'low', 'none']
@@ -135,10 +142,19 @@ export function RouteComponent() {
   const [range, setRange] = useState(() => getWindowRange(7))
   const [instruction, setInstruction] = useState('')
   const [message, setMessage] = useState('')
-  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null)
+  const [selectedConversationId, setSelectedConversationId] = useState<ConversationSelection>(null)
   const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null)
   const [settingsDraft, setSettingsDraft] = useState<Pick<LlmSettings, 'model' | 'reasoning_effort'> | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [streamingUserMessage, setStreamingUserMessage] = useState<string | null>(null)
+  const [streamingAssistantMessage, setStreamingAssistantMessage] = useState('')
+  const [isThinking, setIsThinking] = useState(false)
+  const [isChatStreaming, setIsChatStreaming] = useState(false)
+  const messageViewportRef = useRef<HTMLDivElement | null>(null)
+  const streamQueueRef = useRef<string[]>([])
+  const streamTimerRef = useRef<number | null>(null)
+  const activeStreamIdRef = useRef(0)
+  const pendingCompletionRef = useRef<null | { item: Record<string, unknown>; sessions: Array<Record<string, unknown>> }>(null)
 
   const quoteQuery = useQuery({
     queryKey: ['daily-quote'],
@@ -160,7 +176,13 @@ export function RouteComponent() {
   const drafts = draftsQuery.data?.items ?? []
   const selectedDraft = drafts.find((draft) => draft.id === (selectedDraftId ?? drafts[0]?.id)) ?? drafts[0] ?? null
   const sessions = sessionsQuery.data?.items ?? []
-  const resolvedConversationId = selectedConversationId ?? sessionIdOf((sessions[0] ?? {}) as Record<string, unknown>)
+  const fallbackConversationId = sessionIdOf((sessions[0] ?? {}) as Record<string, unknown>)
+  const resolvedConversationId =
+    selectedConversationId === 'new'
+      ? null
+      : typeof selectedConversationId === 'number'
+        ? selectedConversationId
+        : fallbackConversationId
   const conversationQuery = useQuery({
     queryKey: ['assistant-conversation', resolvedConversationId],
     queryFn: () => loadChatSession(resolvedConversationId as number),
@@ -224,20 +246,6 @@ export function RouteComponent() {
     onError: (error) => setFeedback(describeError(error)),
   })
 
-  const sendChatMutation = useMutation({
-    mutationFn: sendChat,
-    onSuccess: async ({ item }) => {
-      setMessage('')
-      const nextId = sessionIdOf(item.conversation as Record<string, unknown>)
-      if (nextId) {
-        setSelectedConversationId(nextId)
-      }
-      setFeedback('Agent reply received.')
-      await refreshAgent()
-    },
-    onError: (error) => setFeedback(describeError(error)),
-  })
-
   const deleteSessionMutation = useMutation({
     mutationFn: deleteChatSession,
     onSuccess: async () => {
@@ -249,7 +257,214 @@ export function RouteComponent() {
   })
 
   const currentMessages = conversationQuery.data?.item.messages ?? []
+  const displayMessages = useMemo<DisplayMessage[]>(() => {
+    const persisted = currentMessages.map((messageItem) => ({
+      id: `${messageItem.role}-${messageItem.id ?? messageItem.created_at ?? messageItem.content.slice(0, 24)}`,
+      role: messageItem.role,
+      content: messageItem.content,
+    }))
+    const transient: DisplayMessage[] = []
+
+    if (streamingUserMessage) {
+      transient.push({
+        id: 'pending-user',
+        role: 'user',
+        content: streamingUserMessage,
+      })
+    }
+
+    if (isThinking && !streamingAssistantMessage) {
+      transient.push({
+        id: 'pending-thinking',
+        role: 'assistant',
+        content: 'thinking',
+        state: 'thinking',
+      })
+    }
+
+    if (streamingAssistantMessage) {
+      transient.push({
+        id: 'pending-assistant',
+        role: 'assistant',
+        content: streamingAssistantMessage,
+        state: isChatStreaming ? 'streaming' : undefined,
+      })
+    }
+
+    return [...persisted, ...transient]
+  }, [currentMessages, isChatStreaming, isThinking, streamingAssistantMessage, streamingUserMessage])
   const quote = quoteQuery.data?.item
+
+  const clearStreamTimer = () => {
+    if (streamTimerRef.current !== null) {
+      window.clearTimeout(streamTimerRef.current)
+      streamTimerRef.current = null
+    }
+  }
+
+  const resetStreamingUi = () => {
+    clearStreamTimer()
+    streamQueueRef.current = []
+    pendingCompletionRef.current = null
+    setStreamingUserMessage(null)
+    setStreamingAssistantMessage('')
+    setIsThinking(false)
+    setIsChatStreaming(false)
+  }
+
+  const finalizeStream = (payload: { item: Record<string, unknown>; sessions: Array<Record<string, unknown>> }) => {
+    const conversationRecord = payload.item as Record<string, unknown>
+    const conversation = (conversationRecord.conversation ?? {}) as Record<string, unknown>
+    const nextId = sessionIdOf(conversation)
+
+    if (nextId !== null) {
+      client.setQueryData(['assistant-conversation', nextId], {
+        item: conversation,
+      })
+      setSelectedConversationId(nextId)
+      void client.invalidateQueries({ queryKey: ['assistant-conversation', nextId] })
+    }
+
+    client.setQueryData(['assistant-sessions'], {
+      items: payload.sessions,
+    })
+    void client.invalidateQueries({ queryKey: ['assistant-sessions'] })
+
+    setFeedback('Agent reply received.')
+    resetStreamingUi()
+  }
+
+  const flushQueuedAssistantText = () => {
+    if (streamTimerRef.current !== null) {
+      return
+    }
+
+    const step = () => {
+      streamTimerRef.current = null
+      const nextCharacter = streamQueueRef.current.shift()
+
+      if (nextCharacter) {
+        setStreamingAssistantMessage((current) => current + nextCharacter)
+      }
+
+      if (streamQueueRef.current.length > 0) {
+        streamTimerRef.current = window.setTimeout(step, 14)
+        return
+      }
+
+      if (pendingCompletionRef.current) {
+        const completion = pendingCompletionRef.current
+        pendingCompletionRef.current = null
+        finalizeStream(completion)
+      }
+    }
+
+    streamTimerRef.current = window.setTimeout(step, 14)
+  }
+
+  const submitChatMessage = async () => {
+    const trimmedMessage = message.trim()
+    if (!trimmedMessage || !aiEnabled || isChatStreaming) {
+      return
+    }
+
+    const streamId = activeStreamIdRef.current + 1
+    activeStreamIdRef.current = streamId
+    setFeedback(null)
+    setMessage('')
+    setStreamingUserMessage(trimmedMessage)
+    setStreamingAssistantMessage('')
+    setIsThinking(true)
+    setIsChatStreaming(true)
+    streamQueueRef.current = []
+    pendingCompletionRef.current = null
+
+    try {
+      await streamChat(
+        {
+          conversation_id: resolvedConversationId,
+          message: trimmedMessage,
+        },
+        async (event) => {
+          if (activeStreamIdRef.current !== streamId) {
+            return
+          }
+
+          if (event.type === 'thinking') {
+            setIsThinking(true)
+            return
+          }
+
+          if (event.type === 'chunk') {
+            setIsThinking(false)
+            streamQueueRef.current.push(...Array.from(event.content))
+            flushQueuedAssistantText()
+            return
+          }
+
+          if (event.type === 'done') {
+            const item = event.item as unknown as Record<string, unknown>
+            const sessionsList = Array.isArray(item.sessions) ? (item.sessions as Array<Record<string, unknown>>) : []
+
+            if (streamQueueRef.current.length > 0 || streamTimerRef.current !== null) {
+              pendingCompletionRef.current = {
+                item,
+                sessions: sessionsList,
+              }
+            } else {
+              finalizeStream({
+                item,
+                sessions: sessionsList,
+              })
+            }
+            return
+          }
+
+          if (event.type === 'error') {
+            activeStreamIdRef.current += 1
+            setMessage(trimmedMessage)
+            setFeedback(event.detail)
+            resetStreamingUi()
+          }
+        },
+      )
+    } catch (error) {
+      if (activeStreamIdRef.current === streamId) {
+        activeStreamIdRef.current += 1
+        setMessage(trimmedMessage)
+        setFeedback(describeError(error))
+        resetStreamingUi()
+      }
+    }
+  }
+
+  useEffect(() => {
+    const viewport = messageViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior: 'smooth',
+    })
+  }, [displayMessages, isThinking, streamingAssistantMessage])
+
+  useEffect(() => {
+    if (mode === 'chat') {
+      return
+    }
+
+    activeStreamIdRef.current += 1
+    resetStreamingUi()
+  }, [mode])
+
+  useEffect(() => {
+    return () => {
+      activeStreamIdRef.current += 1
+      resetStreamingUi()
+    }
+  }, [])
 
   return (
     <div className="agent-page grid gap-8">
@@ -361,7 +576,7 @@ export function RouteComponent() {
       {settingsQuery.error ? <InlineMessage tone="danger">{describeError(settingsQuery.error)}</InlineMessage> : null}
 
       <ScrollReveal delayMs={90}>
-        <section className="agent-workbench">
+        <section className={`agent-workbench ${mode === 'chat' ? 'is-chat' : ''}`}>
           {mode === 'planning' ? (
             <>
               <Panel className="agent-thread-panel">
@@ -478,68 +693,93 @@ export function RouteComponent() {
             </>
           ) : (
             <>
-              <Panel className="agent-thread-panel">
+              <Panel className="agent-thread-panel agent-chat-panel">
                 <div className="agent-panel-head">
                   <div>
                     <p className="eyebrow">Chat thread</p>
                     <h2 className="agent-panel-title">{resolvedConversationId ? 'Continue the current conversation.' : 'Start a new chat.'}</h2>
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    <Button variant="secondary" onClick={() => setSelectedConversationId(null)}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        activeStreamIdRef.current += 1
+                        resetStreamingUi()
+                        setSelectedConversationId('new')
+                        setFeedback(null)
+                      }}
+                      disabled={isChatStreaming}
+                    >
                       New chat
                     </Button>
                     {resolvedConversationId ? (
-                      <Button variant="ghost" onClick={() => deleteSessionMutation.mutate(resolvedConversationId)}>
+                      <Button variant="ghost" onClick={() => deleteSessionMutation.mutate(resolvedConversationId)} disabled={isChatStreaming}>
                         Delete chat
                       </Button>
                     ) : null}
                   </div>
                 </div>
 
-                <div className="agent-thread-surface">
-                  {currentMessages.length === 0 ? (
-                    <EmptyState title="No messages yet" description="Use chat mode when you want a looser back-and-forth before you decide to formalize it into tasks or schedule blocks." />
+                <div className="agent-thread-surface agent-thread-surface-chat">
+                  {displayMessages.length === 0 ? (
+                    <div className="agent-thread-scroll" ref={messageViewportRef}>
+                      <EmptyState title="No messages yet" description="Use chat mode when you want a looser back-and-forth before you decide to formalize it into tasks or schedule blocks." />
+                    </div>
                   ) : (
-                    <div className="agent-message-stack">
-                      {currentMessages.map((messageItem) => (
-                        <div
-                          key={`${messageItem.role}-${messageItem.id ?? messageItem.content.slice(0, 24)}`}
-                          className={`agent-message-bubble ${messageItem.role === 'assistant' ? 'is-assistant' : 'is-user'}`}
-                        >
-                          <p className="eyebrow">{messageItem.role}</p>
-                          <p className="agent-note-copy whitespace-pre-wrap">{messageItem.content}</p>
-                        </div>
-                      ))}
+                    <div className="agent-thread-scroll" ref={messageViewportRef}>
+                      <div className="agent-message-stack">
+                        {displayMessages.map((messageItem) => (
+                          <div
+                            key={messageItem.id}
+                            className={`agent-message-bubble ${messageItem.role === 'assistant' ? 'is-assistant' : 'is-user'} ${messageItem.state === 'thinking' ? 'is-thinking' : ''}`}
+                          >
+                            <p className="eyebrow">{messageItem.role}</p>
+                            <p className="agent-note-copy whitespace-pre-wrap">
+                              {messageItem.content}
+                              {messageItem.state === 'streaming' ? <span className="agent-stream-cursor" aria-hidden="true" /> : null}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <div className="agent-composer">
+                <div className="agent-composer agent-chat-composer">
                   <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
                     Message
                     <Textarea
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing) {
+                          return
+                        }
+
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault()
+                          void submitChatMessage()
+                        }
+                      }}
                       placeholder="Ask for a calmer sequence, a reset, a prioritization pass, or a plain-language explanation of what to tackle first."
+                      className="agent-chat-textarea"
                     />
                   </label>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="agent-chat-actions">
+                    <p className="agent-composer-hint">Press Enter to send. Use Shift + Enter for a new line.</p>
                     <Button
-                      onClick={() =>
-                        sendChatMutation.mutate({
-                          conversation_id: resolvedConversationId,
-                          message,
-                        })
-                      }
-                      disabled={sendChatMutation.isPending || !message.trim() || !aiEnabled}
+                      onClick={() => {
+                        void submitChatMessage()
+                      }}
+                      disabled={isChatStreaming || !message.trim() || !aiEnabled}
                     >
-                      Send message
+                      {isChatStreaming ? 'Streaming reply...' : 'Send message'}
                     </Button>
                   </div>
                 </div>
               </Panel>
 
-              <Panel className="agent-sidebar-panel">
+              <Panel className="agent-sidebar-panel agent-history-panel">
                 <div className="agent-panel-head">
                   <div>
                     <p className="eyebrow">History</p>
@@ -563,11 +803,15 @@ export function RouteComponent() {
                               setSelectedConversationId(sessionId)
                             }
                           }}
+                          disabled={isChatStreaming}
                           className={`agent-sidebar-card ${resolvedConversationId === sessionId ? 'is-active' : ''}`}
                         >
                           <span className="agent-chip">Chat</span>
                           <p className="agent-sidebar-card-title">{sessionTitleOf(sessionRecord)}</p>
-                          <p className="agent-sidebar-card-copy">Session #{sessionId ?? 'new'}</p>
+                          <div className="agent-sidebar-card-meta">
+                            <p className="agent-sidebar-card-copy">Session #{sessionId ?? 'new'}</p>
+                            <p className="agent-sidebar-card-copy">{typeof sessionRecord.message_count === 'number' ? `${sessionRecord.message_count} messages` : 'Saved conversation'}</p>
+                          </div>
                         </button>
                       )
                     })}

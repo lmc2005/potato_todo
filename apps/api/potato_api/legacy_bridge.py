@@ -26,6 +26,7 @@ from app.services.ai import (
     normalize_plan_payload,
     planning_requests_schedule,
     save_chat_exchange,
+    stream_llm_text,
 )
 from app.services.auth import authenticate_user, create_user, normalize_email, require_user, user_label, verify_password
 from app.services.backup import clear_all_data, export_payload, import_payload
@@ -217,6 +218,7 @@ __all__ = [
     "start_pomodoro",
     "start_timer",
     "stop_timer",
+    "stream_llm_text",
     "sync_overdue_tasks",
     "user_label",
     "user_room_ids",
