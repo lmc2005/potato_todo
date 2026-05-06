@@ -9,6 +9,8 @@ import { Button, EmptyState, InlineMessage, Input, Select } from '@/shared/compo
 import { formatDuration, formatMinutes } from '@/shared/lib/date'
 import { describeError } from '@/shared/lib/errors'
 
+type PendingTimerAction = 'starting' | 'pausing' | 'resuming' | 'stopping' | 'skipping' | null
+
 function deriveTimerState(timer: TimerPayload | undefined, syncedAtMs: number, anchorMs: number) {
   if (!timer?.active) {
     return {
@@ -99,6 +101,7 @@ export function RouteComponent() {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [tickMs, setTickMs] = useState(() => Date.now())
   const [isVisible, setIsVisible] = useState(() => document.visibilityState === 'visible')
+  const [pendingTimerAction, setPendingTimerAction] = useState<PendingTimerAction>(null)
   const zeroSyncRequestedRef = useRef(false)
 
   const subjectsQuery = useQuery({
@@ -168,6 +171,10 @@ export function RouteComponent() {
     setTickMs(Date.now())
   }
 
+  const syncCurrentTimerFromServer = async () => {
+    await client.invalidateQueries({ queryKey: ['current-timer'] })
+  }
+
   const createSubjectMutation = useMutation({
     mutationFn: createSubject,
     onSuccess: async ({ item }) => {
@@ -182,56 +189,104 @@ export function RouteComponent() {
 
   const startTimerMutation = useMutation({
     mutationFn: startTimer,
+    onMutate: () => {
+      setPendingTimerAction('starting')
+      setFeedback('Starting focus...')
+    },
     onSuccess: ({ result }) => {
       syncTimer(result)
       setFeedback('Session started.')
+    },
+    onSettled: async () => {
+      setPendingTimerAction(null)
+      await syncCurrentTimerFromServer()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const startPomodoroMutation = useMutation({
     mutationFn: startPomodoro,
+    onMutate: () => {
+      setPendingTimerAction('starting')
+      setFeedback('Starting pomodoro...')
+    },
     onSuccess: ({ result }) => {
       syncTimer(result)
       setFeedback('Pomodoro started.')
+    },
+    onSettled: async () => {
+      setPendingTimerAction(null)
+      await syncCurrentTimerFromServer()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const pauseTimerMutation = useMutation({
     mutationFn: pauseTimer,
+    onMutate: () => {
+      setPendingTimerAction('pausing')
+      setFeedback('Pausing timer...')
+    },
     onSuccess: ({ result }) => {
       syncTimer(result)
       setFeedback('Timer paused.')
+    },
+    onSettled: async () => {
+      setPendingTimerAction(null)
+      await syncCurrentTimerFromServer()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const resumeTimerMutation = useMutation({
     mutationFn: resumeTimer,
+    onMutate: () => {
+      setPendingTimerAction('resuming')
+      setFeedback('Resuming timer...')
+    },
     onSuccess: ({ result }) => {
       syncTimer(result)
       setFeedback('Timer resumed.')
+    },
+    onSettled: async () => {
+      setPendingTimerAction(null)
+      await syncCurrentTimerFromServer()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const stopTimerMutation = useMutation({
     mutationFn: stopTimer,
+    onMutate: () => {
+      setPendingTimerAction('stopping')
+      setFeedback('Stopping timer...')
+    },
     onSuccess: async ({ result }) => {
       syncTimer(result)
       setFeedback(result.focus_seconds ? `Session stored with ${formatMinutes(Math.round(result.focus_seconds / 60))}.` : 'Timer stopped.')
       await client.invalidateQueries({ queryKey: ['workspace-overview'] })
       await client.invalidateQueries({ queryKey: ['analytics'] })
     },
+    onSettled: async () => {
+      setPendingTimerAction(null)
+      await syncCurrentTimerFromServer()
+    },
     onError: (error) => setFeedback(describeError(error)),
   })
 
   const skipPomodoroMutation = useMutation({
     mutationFn: skipPomodoro,
+    onMutate: () => {
+      setPendingTimerAction('skipping')
+      setFeedback('Advancing pomodoro phase...')
+    },
     onSuccess: ({ result }) => {
       syncTimer(result)
       setFeedback('Pomodoro phase advanced.')
+    },
+    onSettled: async () => {
+      setPendingTimerAction(null)
+      await syncCurrentTimerFromServer()
     },
     onError: (error) => setFeedback(describeError(error)),
   })
@@ -251,6 +306,7 @@ export function RouteComponent() {
   const selectedSubject = subjects.find((subject) => subject.id === Number(subjectId))
   const selectedTask = tasks.find((task) => task.id === Number(taskId))
   const accent = timerAccent(timer)
+  const isTimerActionPending = pendingTimerAction !== null
   const progressRatio = deriveProgress(timer, derived.displaySeconds, derived.elapsedSeconds, Number(durationMinutes), Number(focusMinutes))
   const orbitStyle = {
     '--focus-progress': String(progressRatio),
@@ -337,7 +393,11 @@ export function RouteComponent() {
               {!timer?.active ? (
                 <Button
                   className="min-w-[148px]"
+                  disabled={isTimerActionPending}
                   onClick={() => {
+                    if (isTimerActionPending) {
+                      return
+                    }
                     setFeedback(null)
                     if (!subjectId) {
                       setFeedback('Select a subject before starting.')
@@ -362,27 +422,37 @@ export function RouteComponent() {
                     })
                   }}
                 >
-                  {mode === 'count_down' ? 'Start countdown' : mode === 'pomodoro' ? 'Start pomodoro' : 'Start focus'}
+                  {pendingTimerAction === 'starting'
+                    ? mode === 'pomodoro'
+                      ? 'Starting pomodoro...'
+                      : mode === 'count_down'
+                        ? 'Starting countdown...'
+                        : 'Starting focus...'
+                    : mode === 'count_down'
+                      ? 'Start countdown'
+                      : mode === 'pomodoro'
+                        ? 'Start pomodoro'
+                        : 'Start focus'}
                 </Button>
               ) : timer.is_paused ? (
-                <Button className="min-w-[148px]" onClick={() => resumeTimerMutation.mutate()}>
-                  Resume
+                <Button className="min-w-[148px]" disabled={isTimerActionPending} onClick={() => resumeTimerMutation.mutate()}>
+                  {pendingTimerAction === 'resuming' ? 'Resuming...' : 'Resume'}
                 </Button>
               ) : (
-                <Button className="min-w-[148px]" variant="secondary" onClick={() => pauseTimerMutation.mutate()}>
-                  Pause
+                <Button className="min-w-[148px]" variant="secondary" disabled={isTimerActionPending} onClick={() => pauseTimerMutation.mutate()}>
+                  {pendingTimerAction === 'pausing' ? 'Pausing...' : 'Pause'}
                 </Button>
               )}
 
               {timer?.active ? (
-                <Button variant="ghost" onClick={() => stopTimerMutation.mutate(undefined)}>
-                  Stop and store
+                <Button variant="ghost" disabled={isTimerActionPending} onClick={() => stopTimerMutation.mutate(undefined)}>
+                  {pendingTimerAction === 'stopping' ? 'Stopping...' : 'Stop and store'}
                 </Button>
               ) : null}
 
               {timer?.mode === 'pomodoro' && timer.active ? (
-                <Button variant="secondary" onClick={() => skipPomodoroMutation.mutate()}>
-                  Skip phase
+                <Button variant="secondary" disabled={isTimerActionPending} onClick={() => skipPomodoroMutation.mutate()}>
+                  {pendingTimerAction === 'skipping' ? 'Advancing...' : 'Skip phase'}
                 </Button>
               ) : null}
             </div>
@@ -401,7 +471,7 @@ export function RouteComponent() {
                       type="button"
                       className={`focus-mode-chip ${mode === option.value ? 'is-active' : ''}`}
                       onClick={() => setMode(option.value as 'count_up' | 'count_down' | 'pomodoro')}
-                      disabled={Boolean(timer?.active)}
+                      disabled={Boolean(timer?.active) || isTimerActionPending}
                     >
                       {option.label}
                     </button>
@@ -419,7 +489,7 @@ export function RouteComponent() {
                       value={durationMinutes}
                       className="focus-inline-input"
                       onChange={(event) => setDurationMinutes(event.target.value)}
-                      disabled={Boolean(timer?.active)}
+                      disabled={Boolean(timer?.active) || isTimerActionPending}
                     />
                   </label>
                 ) : (
@@ -522,7 +592,7 @@ export function RouteComponent() {
               <div className="focus-form-grid">
                 <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
                   Subject
-                  <Select value={subjectId} onChange={(event) => setSubjectId(event.target.value)}>
+                  <Select value={subjectId} onChange={(event) => setSubjectId(event.target.value)} disabled={isTimerActionPending}>
                     <option value="">Select subject</option>
                     {subjects.map((subject) => (
                       <option key={subject.id} value={subject.id}>
@@ -534,7 +604,7 @@ export function RouteComponent() {
 
                 <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
                   Linked task
-                  <Select value={taskId} onChange={(event) => setTaskId(event.target.value)}>
+                  <Select value={taskId} onChange={(event) => setTaskId(event.target.value)} disabled={isTimerActionPending}>
                     <option value="">No linked task</option>
                     {tasks.map((task) => (
                       <option key={task.id} value={task.id}>
@@ -560,6 +630,7 @@ export function RouteComponent() {
                             totalRounds,
                           })
                         }
+                        disabled={isTimerActionPending}
                       />
                     </label>
                     <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
@@ -576,6 +647,7 @@ export function RouteComponent() {
                             totalRounds,
                           })
                         }
+                        disabled={isTimerActionPending}
                       />
                     </label>
                     <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
@@ -592,6 +664,7 @@ export function RouteComponent() {
                             totalRounds,
                           })
                         }
+                        disabled={isTimerActionPending}
                       />
                     </label>
                     <label className="grid gap-2 text-sm text-[color:var(--text-soft)]">
@@ -609,6 +682,7 @@ export function RouteComponent() {
                             totalRounds: event.target.value,
                           })
                         }
+                        disabled={isTimerActionPending}
                       />
                     </label>
                   </>

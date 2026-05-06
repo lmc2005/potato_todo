@@ -1121,3 +1121,20 @@ Release standard:
 - Maintenance notes: future hero-status additions should stay derived from the overview payload unless a truly distinct domain endpoint becomes necessary, and visual refinements should reuse this ribbon pattern instead of reintroducing unrelated metric pills
 - Future extension points: overdue-vs-due-today split, streak micro-indicator, adaptive color accents by workload, and hover drill-down into the task subset represented by the count
 - Known limitations / technical debt: this ribbon currently compresses today's task urgency into a single count; if task volume grows significantly, a richer mini-breakdown may be worth adding later
+
+### Entry 042
+
+- Feature name: Focus timer action pending-state hardening
+- Phase: M4-M5
+- Purpose: remove the perceived need to click `Start focus` or `Stop and store` multiple times by making timer actions enter a clear, immediate pending state the moment the first click is accepted
+- User value: users now get immediate visual confirmation that the action has been received, while duplicate clicks during slower backend round-trips are blocked and the timer controls feel reliable instead of laggy
+- APIs: unchanged; the route still uses `POST /api/v2/timer/start`, `POST /api/v2/timer/stop`, `POST /api/v2/timer/pause`, `POST /api/v2/timer/resume`, and `POST /api/v2/timer/pomodoro/skip`
+- Request/response summary: no contract changes were required; the fix is entirely in how the front-end stages and reconciles request state around the existing timer endpoints
+- Frameworks/libraries used: React state, TanStack Query mutations, existing typed timer API module
+- Implementation notes: introduced a shared local `pendingTimerAction` state in `apps/web/src/routes/focus-page.tsx`; wired start/stop/pause/resume/skip mutations to enter pending immediately on `onMutate`; updated button labels to `Starting...`, `Stopping...`, etc.; disabled the action row, mode switch, and related setup inputs while a timer mutation is in flight; and forced a current-timer reconciliation after each mutation settles
+- State transitions and edge cases: if a timer action fails, the pending state is cleared and the user sees the surfaced API error; if the backend already has an active timer, the reconciliation step refreshes the current-timer query so the page snaps back to server truth instead of staying visually stale
+- Performance strategy: no polling was added; the route still uses the existing low-idle timer model and only triggers a targeted current-timer refresh when a timer mutation settles
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck` and `corepack pnpm --filter @potato/web build`
+- Maintenance notes: future timer actions should follow the same rule of entering a visible pending state on first click and should not rely on raw network latency to communicate that a request has begun
+- Future extension points: this local action-state pattern can later support inline spinners, haptics/tones, or optimistic visual transitions for other long-latency controls
+- Known limitations / technical debt: the current fix intentionally favors explicit pending-state UX over full optimistic timer simulation, so the timer display still becomes authoritative on the server response rather than pre-advancing before confirmation
