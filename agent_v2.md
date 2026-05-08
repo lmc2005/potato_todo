@@ -1138,3 +1138,20 @@ Release standard:
 - Maintenance notes: future timer actions should follow the same rule of entering a visible pending state on first click and should not rely on raw network latency to communicate that a request has begun
 - Future extension points: this local action-state pattern can later support inline spinners, haptics/tones, or optimistic visual transitions for other long-latency controls
 - Known limitations / technical debt: the current fix intentionally favors explicit pending-state UX over full optimistic timer simulation, so the timer display still becomes authoritative on the server response rather than pre-advancing before confirmation
+
+### Entry 043
+
+- Feature name: Focus optimistic pause/stop synchronization and Workspace task-to-focus handoff
+- Phase: M4-M5
+- Purpose: fix two severe interaction failures by making `Pause` immediately freeze the local timer surface even when query responses race with the mutation, and by turning Workspace task `Start` into a real timer-launch action that also routes the user into Focus
+- User value: pausing a live session now visibly stops the clock right away instead of leaving it counting under a `Pausing...` label, and starting a task from Workspace now actually opens a count-up focus session and lands the user on the Focus page instead of only flipping task status
+- APIs: unchanged endpoint surface; this pass reuses `POST /api/v2/timer/pause`, `POST /api/v2/timer/resume`, `POST /api/v2/timer/stop`, `POST /api/v2/timer/start`, and `PATCH /api/v2/tasks/{id}`
+- Request/response summary: no DTO changes were required; the fix is in frontend orchestration, query coordination, and route handoff over the existing contracts
+- Frameworks/libraries used: React state/effects, TanStack Query mutations/cache coordination, TanStack Router navigation, existing typed timer/task API modules
+- Implementation notes: added a short-lived `optimisticTimer` layer in `apps/web/src/routes/focus-page.tsx` so pause/resume/stop mutations can override stale `current-timer` query results until the server reconciliation finishes; canceled current-timer queries before those mutations stage; made the timer ticking effects follow the effective timer state rather than raw query data; and reworked Workspace task `Start` in `apps/web/src/routes/workspace-page.tsx` to call `timer/start`, update the task to `in_progress`, seed the current-timer cache, and navigate to `/app/focus`
+- State transitions and edge cases: if pause/resume/stop fails, the previous current-timer snapshot is restored; if a Workspace task has no subject, starting focus is blocked with an explicit error because timer start requires a subject boundary; if a timer is already running, the workspace flow surfaces the backend message and routes the user into Focus so they see the live session
+- Performance strategy: no new background polling was introduced; the optimistic timer exists only during timer mutations, and the workspace handoff reuses cache seeding plus one route navigation instead of adding a new synchronization loop
+- Test coverage: passed `corepack pnpm --filter @potato/web typecheck` and `corepack pnpm --filter @potato/web build`
+- Maintenance notes: any future timer mutation must either coordinate against in-flight `current-timer` query responses or use the same optimistic-timer layer; Workspace task launch behavior should remain the canonical “task to focus” handoff unless product intentionally separates them again
+- Future extension points: route-level deep linking from task cards into different timer modes, subject-required task creation guards, and a shared optimistic-query helper for other realtime-like controls
+- Known limitations / technical debt: Workspace task launch currently opens a `count_up` focus session only; if later task-level metadata should select countdown or Pomodoro automatically, that mapping still needs a dedicated product rule

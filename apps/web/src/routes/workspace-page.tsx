@@ -1,7 +1,9 @@
-import { Link } from '@tanstack/react-router'
+import type { TaskRecord } from '@potato/contracts'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
+import { startTimer as startFocusTimer } from '@/features/focus/api'
 import { createEvent, createTask, deleteEvent, deleteSubject, deleteTask, updateTask, workspaceOverview } from '@/features/workspace/api'
 import { MarqueeTicker } from '@/shared/components/marquee-ticker'
 import { ScrollReveal } from '@/shared/components/scroll-reveal'
@@ -14,6 +16,7 @@ function queryKey(start: string, end: string) {
 }
 
 export function RouteComponent() {
+  const navigate = useNavigate()
   const [range] = useState(() => getWindowRange(7))
   const [taskTitle, setTaskTitle] = useState('')
   const [taskSubjectId, setTaskSubjectId] = useState<string>('')
@@ -57,6 +60,54 @@ export function RouteComponent() {
       await invalidateOverview()
     },
     onError: (error) => setFeedback(describeError(error)),
+  })
+
+  const startTaskFocusMutation = useMutation({
+    mutationFn: async (task: TaskRecord) => {
+      if (!task.subject_id) {
+        throw new Error('Assign a subject to this task before starting focus.')
+      }
+
+      const timerResponse = await startFocusTimer({
+        mode: 'count_up',
+        subject_id: task.subject_id,
+        task_id: task.id,
+        duration_minutes: null,
+      })
+
+      let taskUpdateError: unknown = null
+      if (task.status !== 'in_progress') {
+        try {
+          await updateTask(task.id, { status: 'in_progress' })
+        } catch (error) {
+          taskUpdateError = error
+        }
+      }
+
+      return {
+        task,
+        timerResponse,
+        taskUpdateError,
+      }
+    },
+    onMutate: (task) => {
+      setFeedback(`Starting focus for ${task.title}...`)
+    },
+    onSuccess: async ({ task, timerResponse, taskUpdateError }) => {
+      client.setQueryData(['current-timer'], timerResponse)
+      await invalidateOverview()
+      await client.invalidateQueries({ queryKey: ['focus-tasks'] })
+      await client.invalidateQueries({ queryKey: ['current-timer'] })
+      setFeedback(taskUpdateError ? `Focus started for ${task.title}, but the task status update needs a retry.` : `Focus started for ${task.title}.`)
+      await navigate({ to: '/app/focus' })
+    },
+    onError: async (error) => {
+      const message = describeError(error)
+      setFeedback(message)
+      if (message.toLowerCase().includes('already running')) {
+        await navigate({ to: '/app/focus' })
+      }
+    },
   })
 
   const deleteTaskMutation = useMutation({
@@ -434,9 +485,10 @@ export function RouteComponent() {
                             <Button
                               variant="secondary"
                               size="sm"
-                              onClick={() => updateTaskMutation.mutate({ taskId: task.id, payload: { status: 'in_progress' } })}
+                              disabled={startTaskFocusMutation.isPending && startTaskFocusMutation.variables?.id === task.id}
+                              onClick={() => startTaskFocusMutation.mutate(task)}
                             >
-                              Start
+                              {startTaskFocusMutation.isPending && startTaskFocusMutation.variables?.id === task.id ? 'Starting...' : 'Start'}
                             </Button>
                           ) : null}
                           {task.status !== 'done' ? (

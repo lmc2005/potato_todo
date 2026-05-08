@@ -10,6 +10,9 @@ import { formatDuration, formatMinutes } from '@/shared/lib/date'
 import { describeError } from '@/shared/lib/errors'
 
 type PendingTimerAction = 'starting' | 'pausing' | 'resuming' | 'stopping' | 'skipping' | null
+type TimerQueryState = {
+  result: TimerPayload
+}
 
 function deriveTimerState(timer: TimerPayload | undefined, syncedAtMs: number, anchorMs: number) {
   if (!timer?.active) {
@@ -102,6 +105,7 @@ export function RouteComponent() {
   const [tickMs, setTickMs] = useState(() => Date.now())
   const [isVisible, setIsVisible] = useState(() => document.visibilityState === 'visible')
   const [pendingTimerAction, setPendingTimerAction] = useState<PendingTimerAction>(null)
+  const [optimisticTimer, setOptimisticTimer] = useState<TimerPayload | null>(null)
   const zeroSyncRequestedRef = useRef(false)
 
   const subjectsQuery = useQuery({
@@ -121,6 +125,9 @@ export function RouteComponent() {
     queryFn: loadCurrentTimer,
     refetchOnWindowFocus: false,
   })
+  const timer = optimisticTimer ?? currentTimerQuery.data?.result
+  const syncedAtMs = optimisticTimer ? tickMs : currentTimerQuery.dataUpdatedAt || tickMs
+  const derived = deriveTimerState(timer, syncedAtMs, tickMs)
 
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -139,7 +146,6 @@ export function RouteComponent() {
   }, [currentTimerQuery])
 
   useEffect(() => {
-    const timer = currentTimerQuery.data?.result
     if (!timer?.active || timer.is_paused || !isVisible) {
       return
     }
@@ -149,10 +155,9 @@ export function RouteComponent() {
     return () => {
       window.clearInterval(intervalId)
     }
-  }, [currentTimerQuery.data?.result, isVisible])
+  }, [isVisible, timer])
 
   useEffect(() => {
-    const timer = currentTimerQuery.data?.result
     if (!timer?.active || !isVisible) {
       return
     }
@@ -162,12 +167,24 @@ export function RouteComponent() {
     return () => {
       window.clearInterval(intervalId)
     }
-  }, [currentTimerQuery, currentTimerQuery.data?.result, isVisible])
+  }, [currentTimerQuery, isVisible, timer])
 
   const syncTimer = (nextTimer: TimerPayload) => {
     client.setQueryData(['current-timer'], {
       result: nextTimer,
     })
+    setTickMs(Date.now())
+  }
+
+  const applyOptimisticTimer = (nextTimer: TimerPayload | null) => {
+    setOptimisticTimer(nextTimer)
+    setTickMs(Date.now())
+  }
+
+  const snapshotCurrentTimerCache = () => client.getQueryData<TimerQueryState>(['current-timer'])
+
+  const restoreCurrentTimerCache = (snapshot: TimerQueryState | undefined) => {
+    client.setQueryData(['current-timer'], snapshot ?? { result: { active: false } })
     setTickMs(Date.now())
   }
 
@@ -223,46 +240,85 @@ export function RouteComponent() {
 
   const pauseTimerMutation = useMutation({
     mutationFn: pauseTimer,
-    onMutate: () => {
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: ['current-timer'] })
+      const previousTimer = snapshotCurrentTimerCache()
+      if (previousTimer?.result?.active) {
+        applyOptimisticTimer({
+          ...previousTimer.result,
+          is_paused: true,
+          elapsed_seconds: derived.elapsedSeconds,
+          remaining_seconds: derived.remainingSeconds,
+        })
+      }
       setPendingTimerAction('pausing')
       setFeedback('Pausing timer...')
+      return { previousTimer }
     },
     onSuccess: ({ result }) => {
       syncTimer(result)
+      applyOptimisticTimer(result)
       setFeedback('Timer paused.')
     },
     onSettled: async () => {
       setPendingTimerAction(null)
       await syncCurrentTimerFromServer()
+      applyOptimisticTimer(null)
     },
-    onError: (error) => setFeedback(describeError(error)),
+    onError: (error, _variables, context) => {
+      applyOptimisticTimer(null)
+      restoreCurrentTimerCache(context?.previousTimer)
+      setFeedback(describeError(error))
+    },
   })
 
   const resumeTimerMutation = useMutation({
     mutationFn: resumeTimer,
-    onMutate: () => {
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: ['current-timer'] })
+      const previousTimer = snapshotCurrentTimerCache()
+      if (previousTimer?.result?.active) {
+        applyOptimisticTimer({
+          ...previousTimer.result,
+          is_paused: false,
+        })
+      }
       setPendingTimerAction('resuming')
       setFeedback('Resuming timer...')
+      return { previousTimer }
     },
     onSuccess: ({ result }) => {
       syncTimer(result)
+      applyOptimisticTimer(result)
       setFeedback('Timer resumed.')
     },
     onSettled: async () => {
       setPendingTimerAction(null)
       await syncCurrentTimerFromServer()
+      applyOptimisticTimer(null)
     },
-    onError: (error) => setFeedback(describeError(error)),
+    onError: (error, _variables, context) => {
+      applyOptimisticTimer(null)
+      restoreCurrentTimerCache(context?.previousTimer)
+      setFeedback(describeError(error))
+    },
   })
 
   const stopTimerMutation = useMutation({
     mutationFn: stopTimer,
-    onMutate: () => {
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: ['current-timer'] })
+      const previousTimer = snapshotCurrentTimerCache()
+      applyOptimisticTimer({
+        active: false,
+      })
       setPendingTimerAction('stopping')
       setFeedback('Stopping timer...')
+      return { previousTimer }
     },
     onSuccess: async ({ result }) => {
       syncTimer(result)
+      applyOptimisticTimer(result)
       setFeedback(result.focus_seconds ? `Session stored with ${formatMinutes(Math.round(result.focus_seconds / 60))}.` : 'Timer stopped.')
       await client.invalidateQueries({ queryKey: ['workspace-overview'] })
       await client.invalidateQueries({ queryKey: ['analytics'] })
@@ -270,8 +326,13 @@ export function RouteComponent() {
     onSettled: async () => {
       setPendingTimerAction(null)
       await syncCurrentTimerFromServer()
+      applyOptimisticTimer(null)
     },
-    onError: (error) => setFeedback(describeError(error)),
+    onError: (error, _variables, context) => {
+      applyOptimisticTimer(null)
+      restoreCurrentTimerCache(context?.previousTimer)
+      setFeedback(describeError(error))
+    },
   })
 
   const skipPomodoroMutation = useMutation({
@@ -291,9 +352,6 @@ export function RouteComponent() {
     onError: (error) => setFeedback(describeError(error)),
   })
 
-  const timer = currentTimerQuery.data?.result
-  const syncedAtMs = currentTimerQuery.dataUpdatedAt || tickMs
-  const derived = deriveTimerState(timer, syncedAtMs, tickMs)
   const subjects = subjectsQuery.data?.items ?? []
   const tasks = (tasksQuery.data?.items ?? []).filter((task) => task.status !== 'done')
   const activeSubject = subjects.find((subject) => subject.id === timer?.subject_id)
@@ -390,7 +448,42 @@ export function RouteComponent() {
             </div>
 
             <div className="focus-action-row">
-              {!timer?.active ? (
+              {pendingTimerAction === 'starting' ? (
+                <Button className="min-w-[148px]" disabled>
+                  {mode === 'pomodoro' ? 'Starting pomodoro...' : mode === 'count_down' ? 'Starting countdown...' : 'Starting focus...'}
+                </Button>
+              ) : pendingTimerAction === 'pausing' ? (
+                <>
+                  <Button className="min-w-[148px]" variant="secondary" disabled>
+                    Pausing...
+                  </Button>
+                  <Button variant="ghost" disabled>
+                    Stop and store
+                  </Button>
+                </>
+              ) : pendingTimerAction === 'resuming' ? (
+                <>
+                  <Button className="min-w-[148px]" disabled>
+                    Resuming...
+                  </Button>
+                  <Button variant="ghost" disabled>
+                    Stop and store
+                  </Button>
+                </>
+              ) : pendingTimerAction === 'stopping' ? (
+                <Button variant="ghost" disabled>
+                  Stopping...
+                </Button>
+              ) : pendingTimerAction === 'skipping' ? (
+                <>
+                  <Button className="min-w-[148px]" variant="secondary" disabled>
+                    {timer?.is_paused ? 'Resume' : 'Pause'}
+                  </Button>
+                  <Button variant="secondary" disabled>
+                    Advancing...
+                  </Button>
+                </>
+              ) : !timer?.active ? (
                 <Button
                   className="min-w-[148px]"
                   disabled={isTimerActionPending}
@@ -422,37 +515,27 @@ export function RouteComponent() {
                     })
                   }}
                 >
-                  {pendingTimerAction === 'starting'
-                    ? mode === 'pomodoro'
-                      ? 'Starting pomodoro...'
-                      : mode === 'count_down'
-                        ? 'Starting countdown...'
-                        : 'Starting focus...'
-                    : mode === 'count_down'
-                      ? 'Start countdown'
-                      : mode === 'pomodoro'
-                        ? 'Start pomodoro'
-                        : 'Start focus'}
+                  {mode === 'count_down' ? 'Start countdown' : mode === 'pomodoro' ? 'Start pomodoro' : 'Start focus'}
                 </Button>
               ) : timer.is_paused ? (
                 <Button className="min-w-[148px]" disabled={isTimerActionPending} onClick={() => resumeTimerMutation.mutate()}>
-                  {pendingTimerAction === 'resuming' ? 'Resuming...' : 'Resume'}
+                  Resume
                 </Button>
               ) : (
                 <Button className="min-w-[148px]" variant="secondary" disabled={isTimerActionPending} onClick={() => pauseTimerMutation.mutate()}>
-                  {pendingTimerAction === 'pausing' ? 'Pausing...' : 'Pause'}
+                  Pause
                 </Button>
               )}
 
-              {timer?.active ? (
+              {pendingTimerAction === null && timer?.active ? (
                 <Button variant="ghost" disabled={isTimerActionPending} onClick={() => stopTimerMutation.mutate(undefined)}>
-                  {pendingTimerAction === 'stopping' ? 'Stopping...' : 'Stop and store'}
+                  Stop and store
                 </Button>
               ) : null}
 
-              {timer?.mode === 'pomodoro' && timer.active ? (
+              {pendingTimerAction === null && timer?.mode === 'pomodoro' && timer.active ? (
                 <Button variant="secondary" disabled={isTimerActionPending} onClick={() => skipPomodoroMutation.mutate()}>
-                  {pendingTimerAction === 'skipping' ? 'Advancing...' : 'Skip phase'}
+                  Skip phase
                 </Button>
               ) : null}
             </div>
